@@ -22,7 +22,8 @@ require([
   "esri/symbols/SimpleFillSymbol",
   "esri/symbols/SimpleMarkerSymbol",
   "esri/widgets/Daylight",
-  "esri/widgets/Weather"
+  "esri/widgets/Weather",
+  "esri/views/3d/environment/SunLighting"
 ], function(
   esriConfig,
   IdentityManager,
@@ -45,7 +46,8 @@ require([
   SimpleFillSymbol,
   SimpleMarkerSymbol,
   Daylight,
-  Weather
+  Weather,
+  SunLighting
 ) {
 
   // Portal Configuration & Token Authentication
@@ -402,11 +404,11 @@ require([
         },
         timeZone: "Europe/Madrid",
         environment: {
-          lighting: {
+          lighting: new SunLighting({
             directShadowsEnabled: true,
-            displayUTCOffset: 2, // UTC+2 (CEST - España Horario de Verano)
+            displayUTCOffset: 2, // UTC+2 (España Horario de Verano CEST)
             date: new Date(2026, 7, 10, 12, 0, 0)
-          },
+          }),
           weather: {
             type: "sunny"
           }
@@ -959,8 +961,7 @@ require([
       if (daylightContainer.classList.contains("active") && !daylightWidget && view3D) {
         daylightWidget = new Daylight({
           view: view3D,
-          container: daylightContainer,
-          dateOrTimezone: "both"
+          container: daylightContainer
         });
       }
     });
