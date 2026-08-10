@@ -404,7 +404,8 @@ require([
         environment: {
           lighting: {
             directShadowsEnabled: true,
-            date: new Date(2026, 7, 10, 12, 0, 0) // Set noon summer sun for August in Spain timezone
+            displayUTCOffset: 2, // UTC+2 (CEST - España Horario de Verano)
+            date: new Date(2026, 7, 10, 12, 0, 0)
           },
           weather: {
             type: "sunny"
@@ -959,7 +960,7 @@ require([
         daylightWidget = new Daylight({
           view: view3D,
           container: daylightContainer,
-          dateOrTimezone: "Europe/Madrid"
+          dateOrTimezone: "both"
         });
       }
     });
