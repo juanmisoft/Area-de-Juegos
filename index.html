@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventario de Juegos Infantiles | Ayuntamiento de Rivas Vaciamadrid</title>
+  
+  <!-- Favicon & Meta -->
+  <meta name="description" content="Consulta pública del inventario de áreas de juegos infantiles, elementos biosaludables, calistenia y accesibilidad en Rivas Vaciamadrid.">
+  <meta name="theme-color" content="#007A3D">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- ArcGIS API for JavaScript CSS -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Header Application Bar -->
+  <header class="app-header">
+    <div class="brand-container">
+      <button id="mobileMenuBtn" class="mobile-toggle-menu" aria-label="Abrir menú">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <img src="Logo_OITR.png" alt="Logo Rivas Vaciamadrid" class="brand-logo">
+      <div class="brand-titles">
+        <h1 class="brand-title">Juegos Infantiles</h1>
+        <span class="brand-subtitle">Ayuntamiento de Rivas Vaciamadrid</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      
+      <!-- Basemap Selector Dropdown -->
+      <div class="basemap-dropdown">
+        <button id="btnBasemapMenu" class="basemap-btn">
+          <i class="fa-solid fa-layer-group"></i> <span id="currentBasemapName">Topográfico</span> <i class="fa-solid fa-chevron-down" style="font-size:0.75rem;"></i>
+        </button>
+        <div id="basemapMenu" class="basemap-menu">
+          <button class="basemap-option active" data-basemap="topo-vector">
+            <i class="fa-solid fa-map"></i> Topográfico
+          </button>
+          <button class="basemap-option" data-basemap="hybrid">
+            <i class="fa-solid fa-globe"></i> Satélite / Híbrido
+          </button>
+          <button class="basemap-option" data-basemap="streets-vector">
+            <i class="fa-solid fa-city"></i> Callejero
+          </button>
+          <button class="basemap-option" data-basemap="gray-vector">
+            <i class="fa-solid fa-sun"></i> Gris Claro
+          </button>
+          <button class="basemap-option" data-basemap="dark-gray-vector">
+            <i class="fa-solid fa-moon"></i> Gris Oscuro
+          </button>
+          <button class="basemap-option" data-basemap="osm">
+            <i class="fa-solid fa-route"></i> OpenStreetMap
+          </button>
+        </div>
+      </div>
+
+      <!-- 2D / 3D Mode Toggle Switch -->
+      <div class="mode-toggle-group" role="tablist" aria-label="Modo de visualización">
+        <button id="btn2D" class="toggle-btn active" role="tab" aria-selected="true">
+          <i class="fa-solid fa-map"></i> Mapa 2D
+        </button>
+        <button id="btn3D" class="toggle-btn" role="tab" aria-selected="false">
+          <i class="fa-solid fa-cube"></i> Mapa 3D & Sombras
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="app-container">
+    
+    <!-- Sidebar Panel -->
+    <aside id="sidebar" class="sidebar">
+      
+      <!-- Tab Navigation Header -->
+      <nav class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="tab-games">
+          <i class="fa-solid fa-shapes"></i>
+          <span>Juegos</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-filters">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Filtros</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-near">
+          <i class="fa-solid fa-location-crosshairs"></i>
+          <span>Cerca de mí</span>
+        </button>
+        <button class="tab-btn" data-tab="tab-shade" id="tabShadeBtn">
+          <i class="fa-solid fa-sun"></i>
+          <span>Sombras 3D</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Body Content -->
+      <div class="sidebar-content">
+        
+        <!-- Tab 1: Game Types List -->
+        <div id="tab-games" class="tab-pane active">
+          <div class="section-header">
+            <h2 class="section-title">
+              <i class="fa-solid fa-icons"></i> Tipo de Juego
+            </h2>
+            <span id="totalVisibleCount" class="count-badge">Cargando...</span>
+          </div>
+
+          <div id="gameTypeList" class="game-type-list">
+            <!-- Dynamic game type buttons populated by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Tab 2: Advanced Filters -->
+        <div id="tab-filters" class="tab-pane">
+          <div class="section-header">
+            <h2 class="section-title">
+              <i class="fa-solid fa-filter"></i> Accesibilidad y Edad
+            </h2>
+            <span id="filteredResultsBadge" class="count-badge accent">Todos</span>
+          </div>
+
+          <!-- Age Filter -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <i class="fa-solid fa-child"></i> Rango de Edad
+            </label>
+            <select id="ageFilterSelect" class="filter-select">
+              <option value="">Todas las edades</option>
+              <option value="1-6">1 a 6 años</option>
+              <option value="1-12">1 a 12 años</option>
+              <option value="3-6">3 a 6 años</option>
+              <option value="3-12">3 a 12 años</option>
+              <option value="5-12">5 a 12 años</option>
+              <option value="6-12">6 a 12 años</option>
+            </select>
+          </div>
+
+          <!-- Adapted Filter -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <i class="fa-solid fa-wheelchair"></i> Elemento Adaptado
+            </label>
+            <div id="adaptedChips" class="chip-group">
+              <button class="chip-btn active" data-value="">Todos</button>
+              <button class="chip-btn" data-value="SI">Sí <i class="fa-solid fa-check"></i></button>
+              <button class="chip-btn" data-value="NO">No</button>
+            </div>
+          </div>
+
+          <!-- Inclusive Filter -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <i class="fa-solid fa-hands-holding-child"></i> Elemento Inclusivo
+            </label>
+            <div id="inclusiveChips" class="chip-group">
+              <button class="chip-btn active" data-value="">Todos</button>
+              <button class="chip-btn" data-value="SI">Sí <i class="fa-solid fa-check"></i></button>
+              <button class="chip-btn" data-value="NO">No</button>
+            </div>
+          </div>
+
+          <!-- Reset Button -->
+          <button id="resetFiltersBtn" class="reset-filters-btn">
+            <i class="fa-solid fa-rotate-left"></i> Restablecer Filtros
+          </button>
+        </div>
+
+        <!-- Tab 3: Near Me Widget -->
+        <div id="tab-near" class="tab-pane">
+          <div class="section-header">
+            <h2 class="section-title">
+              <i class="fa-solid fa-compass"></i> Cerca de mí
+            </h2>
+          </div>
+
+          <div class="near-me-card">
+            <button id="btnLocateMe" class="btn-locate">
+              <i class="fa-solid fa-crosshairs"></i> Usar mi Ubicación GPS
+            </button>
+            
+            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+              O haz clic en cualquier punto del mapa
+            </p>
+
+            <div class="radius-slider-container">
+              <div class="radius-slider-header">
+                <span>Radio de búsqueda:</span>
+                <span id="radiusValDisplay" style="color: var(--primary); font-weight:700;">500 m</span>
+              </div>
+              <input type="range" id="radiusRange" class="radius-slider" min="100" max="2000" step="100" value="500">
+            </div>
+          </div>
+
+          <div class="section-header" style="margin-top: 0.5rem;">
+            <h3 class="section-title" style="font-size: 0.9rem;">Resultados Cercanos</h3>
+            <span id="nearResultsCount" class="count-badge">0 elementos</span>
+          </div>
+
+          <div id="nearMeResultsList" class="near-me-results">
+            <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 1.5rem;">
+              <i class="fa-solid fa-location-dot" style="font-size: 2rem; margin-bottom: 8px; color: #CBD5E1;"></i><br>
+              Pulsa en "Usar mi ubicación" o haz clic en el mapa para buscar elementos infantiles cercanos.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: 3D Tree Shade & Weather Analysis -->
+        <div id="tab-shade" class="tab-pane">
+          <div class="section-header">
+            <h2 class="section-title">
+              <i class="fa-solid fa-tree"></i> Sombras y Clima 3D
+            </h2>
+          </div>
+
+          <div class="shade-panel">
+            <div class="shade-toggle-row">
+              <span style="font-weight: 600; font-size: 0.9rem;">
+                <i class="fa-solid fa-tree" style="color: var(--primary);"></i> Arbolado Municipal 3D Realista
+              </span>
+              <label class="switch">
+                <input type="checkbox" id="treeLayerToggle" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <p style="font-size: 0.8rem; color: var(--text-muted);">
+              Capa de arbolado realista con escalado tridimensional dinámico por el campo de altura real.
+            </p>
+
+            <button id="btnOpenDaylight" class="btn-locate" style="background: #D97706;">
+              <i class="fa-solid fa-sun"></i> Control Solar y Hora del Día
+            </button>
+
+            <div class="filter-group" style="margin-top: 8px;">
+              <label class="filter-label">
+                <i class="fa-solid fa-cloud-sun-rain"></i> Condiciones Climatológicas
+              </label>
+              <div class="weather-grid">
+                <button class="weather-btn active" data-weather="sunny">
+                  <i class="fa-solid fa-sun" style="color: #F59E0B;"></i> Soleado
+                </button>
+                <button class="weather-btn" data-weather="cloudy">
+                  <i class="fa-solid fa-cloud" style="color: #64748B;"></i> Nublado
+                </button>
+                <button class="weather-btn" data-weather="rainy">
+                  <i class="fa-solid fa-cloud-showers-heavy" style="color: #0284C7;"></i> Lluvia
+                </button>
+                <button class="weather-btn" data-weather="snowy">
+                  <i class="fa-solid fa-snowflake" style="color: #38BDF8;"></i> Nieve
+                </button>
+                <button class="weather-btn" data-weather="foggy">
+                  <i class="fa-solid fa-smog" style="color: #94A3B8;"></i> Niebla
+                </button>
+                <button id="btnOpenWeatherWidget" class="weather-btn" style="background: var(--primary-light); color: var(--primary);">
+                  <i class="fa-solid fa-sliders"></i> Ajustes
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Map View Container -->
+    <main class="map-view-container">
+      
+      <!-- Loading Overlay -->
+      <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p style="font-weight: 600; color: var(--primary);">Cargando mapa e inventario municipal...</p>
+      </div>
+
+      <!-- Floating Map Buttons -->
+      <div class="map-floating-controls">
+        <button id="btnBasemapFloating" class="floating-btn" title="Cambiar mapa base">
+          <i class="fa-solid fa-layer-group"></i>
+        </button>
+        <button id="btnLocateFloating" class="floating-btn" title="Mi ubicación">
+          <i class="fa-solid fa-location-arrow"></i>
+        </button>
+        <button id="btnResetView" class="floating-btn" title="Centrar mapa en Rivas">
+          <i class="fa-solid fa-house"></i>
+        </button>
+      </div>
+
+      <!-- Container for ArcGIS Daylight & Weather Widgets in 3D -->
+      <div id="daylightWidgetContainer" class="daylight-widget-container"></div>
+      <div id="weatherWidgetContainer" class="weather-widget-container"></div>
+
+      <!-- Unified ArcGIS Map Container -->
+      <div id="viewDiv"></div>
+
+    </main>
+
+  </div>
+
+  <!-- ArcGIS API for JavaScript CDN -->
+  <script src="https://js.arcgis.com/4.30/"></script>
+  
+  <!-- Main Application Logic -->
+  <script src="js/app.js"></script>
+</body>
+</html>

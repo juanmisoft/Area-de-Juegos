@@ -1,0 +1,861 @@
+/* Custom CSS Design System - Municipal Playground Inventory Rivas Vaciamadrid */
+
+:root {
+  --primary: #007A3D;         /* Rivas Municipal Green */
+  --primary-hover: #006030;
+  --primary-light: #E8F5EE;
+  --accent: #FF9800;          /* Warm Orange accent for playful energy */
+  --accent-light: #FFF3E0;
+  --bg-dark: #121E17;
+  --bg-light: #F4F7F5;
+  --sidebar-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --text-main: #212529;
+  --text-muted: #6C757D;
+  --border-color: #E2E8F0;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.18);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --sidebar-width: 380px;
+  --header-height: 70px;
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg-light);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.app-header {
+  height: var(--header-height);
+  background: var(--primary);
+  background: linear-gradient(135deg, #007A3D 0%, #005028 100%);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  position: relative;
+}
+
+.brand-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brand-logo {
+  height: 46px;
+  width: auto;
+  background: #FFFFFF;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  object-fit: contain;
+}
+
+.brand-titles {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+
+.brand-subtitle {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  font-weight: 400;
+}
+
+/* Header Controls & View Toggle */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.mode-toggle-group {
+  display: flex;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  padding: 4px;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.toggle-btn {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 8px 18px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition);
+}
+
+.toggle-btn.active {
+  background: #FFFFFF;
+  color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Basemap Selector Dropdown in Header */
+.basemap-dropdown {
+  position: relative;
+}
+
+.basemap-btn {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition);
+}
+
+.basemap-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.basemap-menu {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  background: #FFFFFF;
+  color: var(--text-main);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  width: 220px;
+  display: none;
+  flex-direction: column;
+  padding: 6px;
+  z-index: 150;
+}
+
+.basemap-menu.open {
+  display: flex;
+}
+
+.basemap-option {
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: var(--transition);
+}
+
+.basemap-option:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.basemap-option.active {
+  background: var(--primary);
+  color: #FFFFFF;
+}
+
+.mobile-toggle-menu {
+  display: none;
+  background: transparent;
+  border: none;
+  color: #FFFFFF;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+/* Main App Container */
+.app-container {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Sidebar Drawer */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  z-index: 90;
+  transition: transform 0.3s ease;
+}
+
+/* Sidebar Tabs Navigation */
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background: #F8FAFC;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 3px solid transparent;
+  transition: var(--transition);
+}
+
+.tab-btn i {
+  font-size: 1.1rem;
+}
+
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: #FFFFFF;
+}
+
+/* Sidebar Content Body */
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tab-pane {
+  display: none;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.tab-pane.active {
+  display: flex;
+}
+
+/* Section Titles & Counter Badges */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-badge {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 122, 61, 0.2);
+}
+
+.count-badge.accent {
+  background: var(--accent-light);
+  color: #D97706;
+  border-color: rgba(217, 119, 6, 0.2);
+}
+
+/* Game Type List */
+.game-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-type-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.game-type-item:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  transform: translateX(3px);
+}
+
+.game-type-item.active {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.game-type-item.active .type-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+.type-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.type-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+}
+
+.type-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.type-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #F1F5F9;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* Filters Component */
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  background-color: #FFFFFF;
+  color: var(--text-main);
+  outline: none;
+  transition: var(--transition);
+}
+
+.filter-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 122, 61, 0.15);
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-btn {
+  border: 1px solid var(--border-color);
+  background: #FFFFFF;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.chip-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.chip-btn.active {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: var(--primary);
+}
+
+.reset-filters-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed var(--border-color);
+  background: #F8FAFC;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: var(--transition);
+  margin-top: 0.5rem;
+}
+
+.reset-filters-btn:hover {
+  background: #F1F5F9;
+  color: #DC2626;
+  border-color: #DC2626;
+}
+
+/* Near Me Widget */
+.near-me-card {
+  background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+  border: 1px solid #BBF7D0;
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.radius-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.radius-slider-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.radius-slider {
+  width: 100%;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.btn-locate {
+  width: 100%;
+  padding: 12px;
+  background: var(--primary);
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.btn-locate:hover {
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.near-me-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.near-item-card {
+  background: #FFFFFF;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.near-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.near-item-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--primary);
+}
+
+.near-item-dist {
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--accent-light);
+  color: #D97706;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.near-item-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Route GPS Button - White text */
+.btn-route, .popup-btn-route {
+  margin-top: 6px;
+  padding: 8px 14px;
+  background: #0284C7;
+  color: #FFFFFF !important;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+  transition: var(--transition);
+}
+
+.btn-route:hover, .popup-btn-route:hover {
+  background: #0369A1;
+  color: #FFFFFF !important;
+}
+
+/* Shade & Sun Analysis Panel (3D) */
+.shade-panel {
+  background: #F8FAFC;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shade-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #CBD5E1;
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--primary);
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+/* Weather Grid Controls */
+.weather-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.weather-btn {
+  border: 1px solid var(--border-color);
+  background: #FFFFFF;
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: var(--transition);
+}
+
+.weather-btn i {
+  font-size: 1.2rem;
+}
+
+.weather-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.weather-btn.active {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: var(--primary);
+}
+
+/* Map Container View */
+.map-view-container {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+#viewDiv {
+  width: 100%;
+  height: 100%;
+}
+
+/* Floating Controls on Map */
+.map-floating-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.floating-btn {
+  width: 42px;
+  height: 42px;
+  background: #FFFFFF;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  color: var(--text-main);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+}
+
+.floating-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  transform: scale(1.05);
+}
+
+/* Floating Daylight Widget Container */
+.daylight-widget-container {
+  position: absolute;
+  bottom: 30px;
+  right: 20px;
+  z-index: 85;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  max-width: 320px;
+  display: none;
+}
+
+.daylight-widget-container.active {
+  display: block;
+}
+
+/* Floating Weather Widget Container - Positioned to side to prevent overlap */
+.weather-widget-container {
+  position: absolute;
+  bottom: 30px;
+  right: 360px;
+  z-index: 85;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  max-width: 320px;
+  display: none;
+}
+
+.weather-widget-container.active {
+  display: block;
+}
+
+/* Custom ArcGIS Popup Overrides */
+.esri-popup__header-title {
+  font-weight: 700 !important;
+  color: var(--primary) !important;
+}
+
+.popup-custom-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.popup-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.popup-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #F1F5F9;
+  color: var(--text-main);
+}
+
+.popup-tag.inclusive {
+  background: #E0F2FE;
+  color: #0369A1;
+}
+
+.popup-tag.adapted {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  transition: opacity 0.3s ease;
+}
+
+.spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid var(--primary-light);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive Media Queries */
+@media (max-width: 900px) {
+  .sidebar {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 320px;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .mobile-toggle-menu {
+    display: block;
+  }
+
+  .weather-widget-container {
+    right: 20px;
+    bottom: 220px;
+  }
+}
