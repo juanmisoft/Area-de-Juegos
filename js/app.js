@@ -400,10 +400,11 @@ require([
           heading: 0,
           tilt: 52
         },
+        timeZone: "Europe/Madrid",
         environment: {
           lighting: {
             directShadowsEnabled: true,
-            date: new Date(2026, 5, 21, 12, 0, 0) // Set noon summer sun for vibrant green tree foliage
+            date: new Date(2026, 7, 10, 12, 0, 0) // Set noon summer sun for August in Spain timezone
           },
           weather: {
             type: "sunny"
@@ -957,7 +958,8 @@ require([
       if (daylightContainer.classList.contains("active") && !daylightWidget && view3D) {
         daylightWidget = new Daylight({
           view: view3D,
-          container: daylightContainer
+          container: daylightContainer,
+          dateOrTimezone: "Europe/Madrid"
         });
       }
     });
