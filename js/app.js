@@ -67,6 +67,7 @@ require([
   
   // Layer definitions mapping with 2D icons and 3D perspective icons
   const GAME_LAYERS_CONFIG = [
+    { id: 9, key: "areas", name: "Áreas de juego (Zonas)", icon2D: "Iconos 2D/patio-de-juegos.png", isPolygon: true },
     { id: 0, key: "trepar", name: "Juego de trepar", icon2D: "Iconos 2D/trepar.png", color: "#A16207", primitive: "sphere" },
     { id: 1, key: "tirolina", name: "Tirolina", icon2D: "Iconos 2D/tirolina.png", color: "#0891B2", primitive: "cylinder" },
     { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder" },
@@ -74,7 +75,6 @@ require([
     { id: 6, key: "carrusel", name: "Carrusel", icon2D: "Iconos 2D/carrusel.png", color: "#9333EA", primitive: "cylinder" },
     { id: 7, key: "balancin", name: "Balancín", icon2D: "Iconos 2D/balancin.png", color: "#D97706", primitive: "cylinder" },
     { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube" },
-    { id: 9, key: "areas", name: "Áreas de juego (Zonas)", icon2D: "Iconos 2D/patio-de-juegos.png", isPolygon: true },
     { id: 13, key: "tobogan", name: "Tobogán", icon2D: "Iconos 2D/tobogan.png", color: "#EA580C", primitive: "cone" },
     { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/casa.png", color: "#6B7280", primitive: "cube" },
     { id: 16, key: "compactos", name: "Multijuego / Compactos", icon2D: "Iconos 2D/Multijuego.png", color: "#E11D48", primitive: "cube" },
@@ -154,20 +154,34 @@ require([
   // Create Custom Popup Template for Play Elements with Photo Attachments
   function createPlayElementPopupTemplate(layerConfig) {
     return {
-      title: "{ELEMENTO} - {TIPO}",
+      title: function(target) {
+        if (target && target.graphic && target.graphic.attributes) {
+          const attrs = target.graphic.attributes;
+          const tipo = attrs.TIPO || attrs.Tipo || (attrs.NAME && attrs.NAME.toLowerCase().includes("ping") ? "Ping pong" : null);
+          if (tipo && tipo.trim() !== "") return tipo;
+        }
+        return layerConfig.name;
+      },
       content: [
         {
           type: "custom",
           creator: function(target) {
-            const attrs = target.graphic.attributes;
-            const edad = attrs.EDAD || attrs.EDAD_G || "Todas";
-            const adaptado = attrs.ADAPTADO || "NO";
-            const inclusivo = attrs.INCLUSIVO || "NO";
-            const suelo = attrs.TIPOSUELO || attrs.TIPO_DE_SUELO || "N/A";
-            const codigo = attrs.CODIGO || attrs.CODIGO_AREA || "N/A";
+            const attrs = target.graphic ? (target.graphic.attributes || {}) : {};
             
+            // Extract primary fields with fallbacks
+            const tipo = attrs.TIPO || attrs.Tipo || layerConfig.name;
+            const elemento = attrs.ELEMENTO || attrs.Elemento || attrs.NAME || attrs.Name || "";
+            const tipoSuelo = attrs.TIPOSUELO || attrs.TIPO_DE_SUELO || attrs.SUELO || attrs.Tipo_Suelo || attrs.TipoSuelo || "";
+            const edad = attrs.EDAD || attrs.Edad || attrs.EDAD_G || "";
+            const adaptado = attrs.ADAPTADO || attrs.Adaptado || "";
+            const inclusivo = attrs.INCLUSIVO || attrs.Inclusivo || "";
+            const uso = attrs.USO || attrs.Uso || "";
+            const ubicacion = attrs.UBICACION || attrs.Ubicacion || attrs.NOMBRE || "";
+            const fuente = attrs.FUENTE || "";
+
+            // Calculate GPS Navigation Link
             let lat = 40.352, lon = -3.528;
-            if (target.graphic.geometry) {
+            if (target.graphic && target.graphic.geometry) {
               if (target.graphic.geometry.type === "point") {
                 lat = target.graphic.geometry.latitude || 40.352;
                 lon = target.graphic.geometry.longitude || -3.528;
@@ -180,21 +194,77 @@ require([
 
             const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
 
+            // Build html rows for significant fields
+            let rowsHtml = "";
+
+            if (tipo) {
+              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-tag"></i> Tipo:</strong> <span>${tipo}</span></div>`;
+            }
+            if (elemento && elemento.toUpperCase() !== tipo.toUpperCase()) {
+              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-shapes"></i> Elemento:</strong> <span>${elemento}</span></div>`;
+            }
+            if (tipoSuelo && tipoSuelo.toString().toUpperCase() !== "N/A") {
+              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-layer-group"></i> Tipo Suelo:</strong> <span>${tipoSuelo}</span></div>`;
+            }
+            if (edad) {
+              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-child"></i> Edad:</strong> <span>${edad}</span></div>`;
+            }
+            if (uso) {
+              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-users"></i> Uso:</strong> <span>${uso}</span></div>`;
+            }
+            if (ubicacion && ubicacion.toUpperCase() !== tipo.toUpperCase()) {
+              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-location-dot"></i> Ubicación:</strong> <span>${ubicacion}</span></div>`;
+            }
+            if (fuente) {
+              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-circle-info"></i> Fuente:</strong> <span>${fuente}</span></div>`;
+            }
+
+            // Internal fields filter pattern (code fields & system attributes)
+            const internalFieldsRegex = /^(objectid|globalid|shape|shape__area|shape__length|shape_length|shape_area|fid|st_length|st_area|created_.*|last_edited_.*|codigo.*|cod_.*|id_.*|id$|guid$|point_x|point_y|point_z|eliminado|creador|f_creador|ultimo_editor|f_ultimo_editor|gis_produccion.*)/i;
+
+            // List of upper-cased keys already handled above
+            const handledKeys = [
+              'TIPO', 'ELEMENTO', 'NAME', 'TIPOSUELO', 'TIPO_DE_SUELO', 'SUELO',
+              'EDAD', 'EDAD_G', 'ADAPTADO', 'INCLUSIVO', 'USO', 'UBICACION', 'NOMBRE', 'FUENTE'
+            ];
+
+            // Render remaining significant fields dynamically
+            Object.keys(attrs).forEach(key => {
+              if (handledKeys.includes(key.toUpperCase())) return;
+              if (internalFieldsRegex.test(key)) return;
+
+              const val = attrs[key];
+              if (val !== null && val !== undefined && val !== "" && val !== "N/A" && val !== "Null" && val !== "null") {
+                const formattedLabel = key.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+                rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-circle-dot"></i> ${formattedLabel}:</strong> <span>${val}</span></div>`;
+              }
+            });
+
+            // Accessibility badges for Adaptado & Inclusivo
+            let tagsHtml = "";
+            if (adaptado || inclusivo) {
+              tagsHtml = `<div class="popup-tags" style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">`;
+              if (adaptado) {
+                const isSi = adaptado.toString().toUpperCase() === "SI";
+                tagsHtml += `<span class="popup-tag ${isSi ? 'adapted' : 'not-adapted'}"><i class="fa-solid fa-wheelchair"></i> Adaptado: ${adaptado}</span>`;
+              }
+              if (inclusivo) {
+                const isSi = inclusivo.toString().toUpperCase() === "SI";
+                tagsHtml += `<span class="popup-tag ${isSi ? 'inclusive' : 'not-inclusive'}"><i class="fa-solid fa-hands-holding-child"></i> Inclusivo: ${inclusivo}</span>`;
+              }
+              tagsHtml += `</div>`;
+            }
+
             const container = document.createElement("div");
             container.className = "popup-custom-card";
             container.innerHTML = `
-              <div class="popup-tags">
-                <span class="popup-tag"><i class="fa-solid fa-child"></i> Edad: ${edad}</span>
-                <span class="popup-tag adapted"><i class="fa-solid fa-wheelchair"></i> Adaptado: ${adaptado}</span>
-                <span class="popup-tag inclusive"><i class="fa-solid fa-hands-holding-child"></i> Inclusivo: ${inclusivo}</span>
+              <div class="popup-details-list" style="font-size: 0.88rem; color: #334155; display: flex; flex-direction: column; gap: 6px;">
+                ${rowsHtml}
               </div>
 
-              <div style="margin-top: 8px; font-size: 0.82rem; color: #475569;">
-                <strong>Cód. Área:</strong> ${codigo}<br>
-                <strong>Tipo de Suelo:</strong> ${suelo}
-              </div>
+              ${tagsHtml}
 
-              <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route">
+              <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route" style="margin-top: 10px;">
                 <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
               </a>
             `;
@@ -284,8 +354,6 @@ require([
     map2D = new Map({ basemap: activeBasemap });
     map3D = new Map({ basemap: activeBasemap, ground: "world-topobathymetry" });
 
-    map2D.add(nearMeGraphicsLayer);
-
     // Add 3D OpenStreetMap Buildings Layer
     try {
       buildings3DLayer = new SceneLayer({
@@ -314,8 +382,10 @@ require([
       console.warn("Arbolado 3D layer error:", e);
     }
 
-    // Create 2D & 3D Feature Layers
-    GAME_LAYERS_CONFIG.forEach(cfg => {
+    // Create 2D & 3D Feature Layers (Ensure polygon layers are added FIRST so they sit at the bottom of the map)
+    const sortedConfigs = [...GAME_LAYERS_CONFIG].sort((a, b) => (b.isPolygon ? 1 : 0) - (a.isPolygon ? 1 : 0));
+
+    sortedConfigs.forEach(cfg => {
       const url = `${SERVER_URL}/${cfg.id}?token=${portalToken}`;
       
       const layer2D = new FeatureLayer({
@@ -334,7 +404,9 @@ require([
         outFields: ["*"],
         labelsVisible: false,
         labelingInfo: null,
-        elevationInfo: { mode: "relative-to-ground", offset: cfg.isPolygon ? 0 : 2 },
+        elevationInfo: cfg.isPolygon 
+          ? { mode: "on-the-ground" } 
+          : { mode: "relative-to-ground", offset: 2 },
         renderer: get3DRenderer(cfg),
         popupTemplate: createPlayElementPopupTemplate(cfg)
       });
@@ -357,13 +429,26 @@ require([
       });
     });
 
+    // Add GraphicsLayer for Near Me search on top of feature layers in 2D
+    map2D.add(nearMeGraphicsLayer);
+
     // Initialize 2D View on container #viewDiv
     view2D = new MapView({
       container: "viewDiv",
       map: map2D,
       center: [-3.528, 40.352],
-      zoom: 15
+      zoom: 13
     });
+    view2D.popup.autoNavigateEnabled = false;
+    view2D.popup.dockEnabled = true;
+    view2D.popup.dockOptions = {
+      buttonEnabled: false,
+      breakpoint: false,
+      position: "top-center"
+    };
+    view2D.popup.goToOverride = function() {
+      return Promise.resolve();
+    };
 
     currentView = view2D;
 
@@ -373,9 +458,11 @@ require([
       updateFeatureCounts();
     });
 
-    // Map click handler for Near Me
+    // Map click handler for Near Me (only when "Cerca de mí" tab is active)
     view2D.on("click", (evt) => {
-      if (evt.mapPoint) setUserNearMePoint(evt.mapPoint);
+      if (isNearMeTabActive() && evt.mapPoint) {
+        setUserNearMePoint(evt.mapPoint);
+      }
     });
   }
 
@@ -387,20 +474,18 @@ require([
     document.getElementById("btn3D").classList.add("active");
     document.getElementById("btn2D").classList.remove("active");
 
-    const centerPoint = view2D.center ? [view2D.center.longitude, view2D.center.latitude] : [-3.528, 40.352];
-
     // Detach 2D view from container
     view2D.container = null;
 
     if (!view3D) {
-      // Lazy initialize 3D view directly on container #viewDiv
+      // Lazy initialize 3D view directly on container #viewDiv with high overview camera of municipality
       view3D = new SceneView({
         container: "viewDiv",
         map: map3D,
         camera: {
-          position: { longitude: centerPoint[0], latitude: centerPoint[1] - 0.006, z: 450 },
+          position: { longitude: -3.528, latitude: 40.320, z: 7500 },
           heading: 0,
-          tilt: 52
+          tilt: 20
         },
         timeZone: "Europe/Madrid",
         environment: {
@@ -414,18 +499,25 @@ require([
           }
         }
       });
+      view3D.popup.autoNavigateEnabled = false;
+      view3D.popup.dockEnabled = true;
+      view3D.popup.dockOptions = {
+        buttonEnabled: false,
+        breakpoint: false,
+        position: "top-center"
+      };
+      view3D.popup.goToOverride = function() {
+        return Promise.resolve();
+      };
 
       view3D.on("click", (evt) => {
-        if (evt.mapPoint) setUserNearMePoint(evt.mapPoint);
+        if (isNearMeTabActive() && evt.mapPoint) {
+          setUserNearMePoint(evt.mapPoint);
+        }
       });
     } else {
       // Attach existing 3D view to container
       view3D.container = "viewDiv";
-      view3D.goTo({
-        center: centerPoint,
-        zoom: 16,
-        tilt: 52
-      });
     }
 
     currentView = view3D;
@@ -635,9 +727,36 @@ require([
   }
 
   // Near Me Functionality
+  function isNearMeTabActive() {
+    const nearPane = document.getElementById("tab-near");
+    return nearPane && nearPane.classList.contains("active");
+  }
+
+  function clearNearMeSearch() {
+    nearMeGraphicsLayer.removeAll();
+    userLocationPoint = null;
+    const btnClear = document.getElementById("btnClearNearMe");
+    if (btnClear) btnClear.style.display = "none";
+
+    const resultsContainer = document.getElementById("nearMeResultsList");
+    if (resultsContainer) {
+      resultsContainer.innerHTML = `
+        <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 1.5rem;">
+          <i class="fa-solid fa-location-dot" style="font-size: 2rem; margin-bottom: 8px; color: #CBD5E1;"></i><br>
+          Pulsa en "Usar mi ubicación" o haz clic en el mapa estando en esta pestaña para buscar elementos infantiles cercanos.
+        </div>
+      `;
+    }
+    const countBadge = document.getElementById("nearResultsCount");
+    if (countBadge) countBadge.textContent = "0 elementos";
+  }
+
   function setUserNearMePoint(point) {
     userLocationPoint = point;
     nearMeGraphicsLayer.removeAll();
+
+    const btnClear = document.getElementById("btnClearNearMe");
+    if (btnClear) btnClear.style.display = "flex";
 
     // User marker
     const userMarker = new Graphic({
@@ -668,10 +787,6 @@ require([
     });
 
     nearMeGraphicsLayer.addMany([circleGraphic, userMarker]);
-
-    if (currentView) {
-      currentView.goTo({ target: circleGeometry.extent.expand(1.2) });
-    }
 
     queryNearMeResults(circleGeometry, point);
   }
@@ -729,28 +844,80 @@ require([
     }
 
     resultsContainer.innerHTML = "";
-    nearbyFeatures.slice(0, 20).forEach(item => {
-      const attrs = item.feature.attributes;
-      const nombre = attrs.ELEMENTO || attrs.TIPO || item.layerConfig.name;
-      const lat = item.point.latitude || 40.352;
-      const lon = item.point.longitude || -3.528;
-      const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
 
-      const card = document.createElement("div");
-      card.className = "near-item-card";
-      card.innerHTML = `
-        <div class="near-item-header">
-          <span class="near-item-title">${nombre}</span>
-          <span class="near-item-dist">${item.distance} m</span>
+    // Group nearby features by element type (Layer Config Name / Tipo)
+    const groups = {};
+    nearbyFeatures.forEach(item => {
+      const typeKey = item.layerConfig.name;
+      if (!groups[typeKey]) {
+        groups[typeKey] = {
+          config: item.layerConfig,
+          items: []
+        };
+      }
+      groups[typeKey].items.push(item);
+    });
+
+    // Render each group section with group label header
+    Object.keys(groups).forEach(typeKey => {
+      const group = groups[typeKey];
+      
+      const groupSection = document.createElement("div");
+      groupSection.className = "near-group-section";
+
+      const groupHeader = document.createElement("div");
+      groupHeader.className = "near-group-header";
+      groupHeader.innerHTML = `
+        <div class="near-group-title">
+          <img src="${group.config.icon2D}" alt="${typeKey}" class="near-group-icon">
+          <span>${typeKey}</span>
         </div>
-        <div class="near-item-meta">
-          <i class="fa-solid fa-layer-group"></i> ${item.layerConfig.name} | Adaptado: ${attrs.ADAPTADO || 'NO'}
-        </div>
-        <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route">
-          <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS)
-        </a>
+        <span class="near-group-badge">${group.items.length} ${group.items.length === 1 ? 'elemento' : 'elementos'}</span>
       `;
-      resultsContainer.appendChild(card);
+      groupSection.appendChild(groupHeader);
+
+      group.items.forEach(item => {
+        const attrs = item.feature.attributes || {};
+        const nombre = attrs.ELEMENTO || attrs.Elemento || attrs.TIPO || item.layerConfig.name;
+        const adaptado = attrs.ADAPTADO || attrs.Adaptado || 'NO';
+        const edad = attrs.EDAD || attrs.EDAD_G || 'Todas';
+        const lat = item.point.latitude || 40.352;
+        const lon = item.point.longitude || -3.528;
+        const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+
+        const card = document.createElement("div");
+        card.className = "near-item-card";
+        card.innerHTML = `
+          <div class="near-item-header">
+            <span class="near-item-title">${nombre}</span>
+            <span class="near-item-dist">${item.distance} m</span>
+          </div>
+          <div class="near-item-details">
+            <span class="near-detail-chip"><i class="fa-solid fa-child"></i> Edad: ${edad}</span>
+            <span class="near-detail-chip ${adaptado === 'SI' ? 'is-adapted' : ''}">
+              <i class="fa-solid fa-wheelchair"></i> Adaptado: ${adaptado}
+            </span>
+          </div>
+          <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route">
+            <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS)
+          </a>
+        `;
+
+        // Selecting card opens popup on current map view without altering zoom
+        card.addEventListener("click", (e) => {
+          if (e.target.closest(".btn-route")) return;
+          if (currentView) {
+            currentView.popup.open({
+              features: [item.feature],
+              location: item.point
+            });
+          }
+        });
+
+        groupSection.appendChild(card);
+      });
+
+      resultsContainer.appendChild(groupSection);
     });
   }
 
@@ -839,6 +1006,11 @@ require([
 
         btn.classList.add("active");
         document.getElementById(tabId).classList.add("active");
+
+        // Clear Near Me radius search when leaving "Cerca de mí" tab
+        if (tabId !== "tab-near") {
+          clearNearMeSearch();
+        }
       });
     });
 
@@ -921,16 +1093,34 @@ require([
     });
 
     document.getElementById("btnLocateFloating").addEventListener("click", () => {
+      const nearTabBtn = document.querySelector('.tab-btn[data-tab="tab-near"]');
+      if (nearTabBtn) nearTabBtn.click();
       document.getElementById("btnLocateMe").click();
     });
+
+    // Clear Near Me Search Button
+    const btnClearNearMe = document.getElementById("btnClearNearMe");
+    if (btnClearNearMe) {
+      btnClearNearMe.addEventListener("click", () => {
+        clearNearMeSearch();
+      });
+    }
 
     // Reset View Button
     document.getElementById("btnResetView").addEventListener("click", () => {
       if (currentView) {
-        currentView.goTo({
-          center: [-3.528, 40.352],
-          zoom: 15
-        });
+        if (is3DMode && view3D) {
+          view3D.goTo({
+            position: { longitude: -3.528, latitude: 40.320, z: 7500 },
+            heading: 0,
+            tilt: 20
+          });
+        } else if (view2D) {
+          view2D.goTo({
+            center: [-3.528, 40.352],
+            zoom: 13
+          });
+        }
       }
     });
 
