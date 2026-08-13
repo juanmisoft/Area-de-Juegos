@@ -55,6 +55,7 @@ require([
   const SERVER_URL = "https://sit.rivasciudad.es/server/rest/services/AREA_JUEGO_VISUALIZACION/FeatureServer";
   const BUILDINGS_3D_URL = "https://basemaps3d.arcgis.com/arcgis/rest/services/OpenStreetMap3D_Buildings_v1/SceneServer";
   const ARBOLADO_V3_URL = "https://sit.rivasciudad.es/server/rest/services/Visualizacion_arbolado_Rivamadrid_V3/FeatureServer/11"; // Item: ce35426da80045328ece3d2b87fbc948
+  const EDIFICIOS_MUNI_URL = "https://sit.rivasciudad.es/server/rest/services/Edificios_Municipales/FeatureServer/0";
   
   let portalToken = null;
   let map2D, map3D;
@@ -64,6 +65,8 @@ require([
   let weatherWidget = null;
   let buildings3DLayer = null;
   let arboladoLayer3D = null;
+  let edificiosMuniLayer2D = null;
+  let edificiosMuniLayer3D = null;
   
   // Layer definitions mapping with 2D icons and 3D perspective icons
   const GAME_LAYERS_CONFIG = [
@@ -382,6 +385,108 @@ require([
       console.warn("Arbolado 3D layer error:", e);
     }
 
+    // Helper to sanitize building names
+    function sanitizeBuildingName(name) {
+      if (!name) return "";
+      return name
+        .replace(/\bTELGRAFO\b/gi, "TELÉGRAFO")
+        .replace(/\bSANTA MNICA\b/gi, "SANTA MÓNICA")
+        .replace(/\b1 MAYO\b/gi, "1º MAYO")
+        .replace(/\bCIGEAS\b/gi, "CIGÜEÑAS")
+        .replace(/\bCHACN\b/gi, "CHACÓN")
+        .trim();
+    }
+
+    // 2D Municipal Buildings Layer (Bottom layer in 2D map)
+    try {
+      edificiosMuniLayer2D = new FeatureLayer({
+        url: `${EDIFICIOS_MUNI_URL}?token=${portalToken}`,
+        title: "Edificios Municipales 2D",
+        outFields: ["*"],
+        popupEnabled: false,
+        renderer: new SimpleRenderer({
+          symbol: new SimpleFillSymbol({
+            color: [226, 232, 240, 0.3],
+            outline: { color: [148, 163, 184, 0.5], width: 1 }
+          })
+        })
+      });
+      map2D.add(edificiosMuniLayer2D);
+    } catch (e) {
+      console.warn("2D Municipal buildings error:", e);
+    }
+
+    // Add 3D Municipal Buildings Layer (Extruded 6m 3D Shapes - Neutral 3D 1.0 style)
+    try {
+      edificiosMuniLayer3D = new FeatureLayer({
+        url: `${EDIFICIOS_MUNI_URL}?token=${portalToken}`,
+        title: "Edificios Municipales 3D",
+        outFields: ["*"],
+        elevationInfo: { mode: "relative-to-ground", offset: 0 },
+        renderer: new SimpleRenderer({
+          symbol: {
+            type: "polygon-3d",
+            symbolLayers: [
+              {
+                type: "extrude",
+                size: 6,
+                material: { color: [241, 245, 249, 0.5] },
+                edges: {
+                  type: "solid",
+                  color: [148, 163, 184, 0.7],
+                  size: 1
+                }
+              }
+            ]
+          }
+        }),
+        labelsVisible: true,
+        labelingInfo: [
+          {
+            labelExpressionInfo: {
+              expression: "var n = IIF(!IsEmpty($feature.DESCRIP), $feature.DESCRIP, $feature.ID_CONJUNTO); return IIF(IsEmpty(n), '', n);"
+            },
+            labelPlacement: "above-center",
+            symbol: {
+              type: "label-3d",
+              symbolLayers: [
+                {
+                  type: "text",
+                  material: { color: "#0F172A" },
+                  font: { size: 9.5, family: "Outfit", weight: "bold" },
+                  halo: { color: "#FFFFFF", size: 1.8 }
+                }
+              ]
+            }
+          }
+        ],
+        popupTemplate: {
+          title: function(target) {
+            const a = target.graphic ? target.graphic.attributes : {};
+            return sanitizeBuildingName(a.DESCRIP || a.ID_CONJUNTO) || "Edificio Municipal";
+          },
+          content: function(target) {
+            const a = target.graphic ? target.graphic.attributes : {};
+            const nombre = sanitizeBuildingName(a.DESCRIP || a.ID_CONJUNTO) || "Edificio Municipal";
+            const cat = a.ATRIBUTO || "Servicio Municipal";
+            const container = document.createElement("div");
+            container.className = "popup-custom-card";
+            container.innerHTML = `
+              <div style="display:flex; flex-direction:column; gap:6px; font-size:0.9rem; color:#334155;">
+                <div><strong><i class="fa-solid fa-building-flag"></i> Edificio:</strong> <span>${nombre}</span></div>
+                <div><strong><i class="fa-solid fa-tag"></i> Categoría:</strong> <span>${cat}</span></div>
+              </div>
+            `;
+            return container;
+          }
+        }
+      });
+      map3D.add(edificiosMuniLayer3D);
+
+    } catch (e) {
+      console.warn("Edificios Municipales 3D error:", e);
+    }
+
     // Create 2D & 3D Feature Layers (Ensure polygon layers are added FIRST so they sit at the bottom of the map)
     const sortedConfigs = [...GAME_LAYERS_CONFIG].sort((a, b) => (b.isPolygon ? 1 : 0) - (a.isPolygon ? 1 : 0));
 
@@ -405,8 +510,8 @@ require([
         labelsVisible: false,
         labelingInfo: null,
         elevationInfo: cfg.isPolygon 
-          ? { mode: "on-the-ground" } 
-          : { mode: "relative-to-ground", offset: 2 },
+          ? { mode: "relative-to-ground", offset: 6.2 } 
+          : { mode: "relative-to-ground", offset: 8 },
         renderer: get3DRenderer(cfg),
         popupTemplate: createPlayElementPopupTemplate(cfg)
       });
@@ -1130,6 +1235,29 @@ require([
       treeToggle.addEventListener("change", (e) => {
         if (arboladoLayer3D) {
           arboladoLayer3D.visible = e.target.checked;
+        }
+      });
+    }
+
+    // 3D Municipal Buildings Carteles Toggle Switch
+    const edificiosToggle = document.getElementById("edificios3DToggle");
+    if (edificiosToggle) {
+      edificiosToggle.addEventListener("change", (e) => {
+        if (edificiosMuniLayer2D) {
+          edificiosMuniLayer2D.visible = e.target.checked;
+        }
+        if (edificiosMuniLayer3D) {
+          edificiosMuniLayer3D.visible = e.target.checked;
+        }
+      });
+    }
+
+    // Municipal Building Labels Toggle Switch
+    const edificiosLabelsToggle = document.getElementById("edificiosLabelsToggle");
+    if (edificiosLabelsToggle) {
+      edificiosLabelsToggle.addEventListener("change", (e) => {
+        if (edificiosMuniLayer3D) {
+          edificiosMuniLayer3D.labelsVisible = e.target.checked;
         }
       });
     }
