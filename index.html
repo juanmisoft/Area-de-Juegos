@@ -190,8 +190,8 @@
               <i class="fa-solid fa-crosshairs"></i> Usar mi Ubicación GPS
             </button>
             
-            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">
-              O haz clic en cualquier punto del mapa
+            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin-top: 6px;">
+              O haz clic en cualquier punto del mapa estando en esta pestaña
             </p>
 
             <div class="radius-slider-container">
@@ -201,6 +201,10 @@
               </div>
               <input type="range" id="radiusRange" class="radius-slider" min="100" max="2000" step="100" value="500">
             </div>
+
+            <button id="btnClearNearMe" class="btn-reset-near" style="display:none; margin-top: 10px;">
+              <i class="fa-solid fa-trash-can"></i> Limpiar Búsqueda Cerca de Mí
+            </button>
           </div>
 
           <div class="section-header" style="margin-top: 0.5rem;">
@@ -211,7 +215,7 @@
           <div id="nearMeResultsList" class="near-me-results">
             <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 1.5rem;">
               <i class="fa-solid fa-location-dot" style="font-size: 2rem; margin-bottom: 8px; color: #CBD5E1;"></i><br>
-              Pulsa en "Usar mi ubicación" o haz clic en el mapa para buscar elementos infantiles cercanos.
+              Pulsa en "Usar mi ubicación" o haz clic en el mapa estando en esta pestaña para buscar elementos infantiles cercanos.
             </div>
           </div>
         </div>
