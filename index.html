@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
   
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=20260825-popup">
 </head>
 <body>
 
@@ -134,17 +134,15 @@
           <!-- Age Filter -->
           <div class="filter-group">
             <label class="filter-label">
-              <i class="fa-solid fa-child"></i> Rango de Edad
+              <i class="fa-solid fa-child"></i> Edad recomendada
             </label>
-            <select id="ageFilterSelect" class="filter-select">
-              <option value="">Todas las edades</option>
-              <option value="1-6">1 a 6 años</option>
-              <option value="1-12">1 a 12 años</option>
-              <option value="3-6">3 a 6 años</option>
-              <option value="3-12">3 a 12 años</option>
-              <option value="5-12">5 a 12 años</option>
-              <option value="6-12">6 a 12 años</option>
-            </select>
+            <p class="filter-hint">Aplica a los elementos de juego. Las zonas (áreas) siguen visibles.</p>
+            <div id="ageChips" class="chip-group">
+              <button class="chip-btn active" data-value="">Todas</button>
+              <button class="chip-btn" data-value="small">Pequeños (1–6)</button>
+              <button class="chip-btn" data-value="school">Escolares (6–12)</button>
+              <button class="chip-btn" data-value="adult">Jóvenes y adultos (+12)</button>
+            </div>
           </div>
 
           <!-- Adapted Filter -->
@@ -254,13 +252,13 @@
                 <i class="fa-solid fa-tree" style="color: var(--primary);"></i> Arbolado Municipal 3D Realista
               </span>
               <label class="switch">
-                <input type="checkbox" id="treeLayerToggle" checked>
+                <input type="checkbox" id="treeLayerToggle">
                 <span class="slider"></span>
               </label>
             </div>
 
             <p style="font-size: 0.8rem; color: var(--text-muted);">
-              Capa de arbolado realista con escalado tridimensional dinámico por el campo de altura real.
+              En móviles el arbolado se desactiva por defecto. En escritorio aparece al acercar la cámara.
             </p>
 
             <button id="btnOpenDaylight" class="btn-locate" style="background: #D97706;">
@@ -336,6 +334,6 @@
   <script src="https://js.arcgis.com/4.30/"></script>
   
   <!-- Main Application Logic -->
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=20260825-pop3d"></script>
 </body>
 </html>

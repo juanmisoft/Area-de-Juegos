@@ -14,7 +14,9 @@ require([
   "esri/geometry/Circle",
   "esri/geometry/geometryEngine",
   "esri/renderers/SimpleRenderer",
+  "esri/renderers/UniqueValueRenderer",
   "esri/symbols/PictureMarkerSymbol",
+  "esri/symbols/PictureFillSymbol",
   "esri/symbols/ObjectSymbol3DLayer",
   "esri/symbols/IconSymbol3DLayer",
   "esri/symbols/PointSymbol3D",
@@ -38,7 +40,9 @@ require([
   Circle,
   geometryEngine,
   SimpleRenderer,
+  UniqueValueRenderer,
   PictureMarkerSymbol,
+  PictureFillSymbol,
   ObjectSymbol3DLayer,
   IconSymbol3DLayer,
   PointSymbol3D,
@@ -55,8 +59,27 @@ require([
   const SERVER_URL = "https://sit.rivasciudad.es/server/rest/services/AREA_JUEGO_VISUALIZACION/FeatureServer";
   const BUILDINGS_3D_URL = "https://basemaps3d.arcgis.com/arcgis/rest/services/OpenStreetMap3D_Buildings_v1/SceneServer";
   const ARBOLADO_V3_URL = "https://sit.rivasciudad.es/server/rest/services/Visualizacion_arbolado_Rivamadrid_V3/FeatureServer/11"; // Item: ce35426da80045328ece3d2b87fbc948
-  const EDIFICIOS_MUNI_URL = "https://sit.rivasciudad.es/server/rest/services/Edificios_Municipales/FeatureServer/0";
-  
+
+  const perfProfile = (function detectPerformanceProfile() {
+    const ua = navigator.userAgent || "";
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+      || ((navigator.maxTouchPoints || 0) > 1 && window.innerWidth < 900);
+    const cores = navigator.hardwareConcurrency || 8;
+    const memory = navigator.deviceMemory || 8;
+    const saveData = !!(navigator.connection && navigator.connection.saveData);
+    const isLowPower = isMobile || saveData || cores <= 4 || memory <= 4;
+    return {
+      isMobile,
+      isLowPower,
+      qualityProfile: isLowPower ? "low" : "medium",
+      realisticTrees: !isLowPower,
+      treeMinScale: isLowPower ? 3500 : 7000,
+      osmBuildings: !isMobile,
+      atmosphere: !isLowPower,
+      iconSize: isLowPower ? 22 : 28
+    };
+  })();
+
   let portalToken = null;
   let map2D, map3D;
   let view2D = null, view3D = null, currentView = null;
@@ -65,26 +88,130 @@ require([
   let weatherWidget = null;
   let buildings3DLayer = null;
   let arboladoLayer3D = null;
-  let edificiosMuniLayer2D = null;
-  let edificiosMuniLayer3D = null;
   
   // Layer definitions mapping with 2D icons and 3D perspective icons
   const GAME_LAYERS_CONFIG = [
     { id: 9, key: "areas", name: "Áreas de juego (Zonas)", icon2D: "Iconos 2D/patio-de-juegos.png", isPolygon: true },
     { id: 0, key: "trepar", name: "Juego de trepar", icon2D: "Iconos 2D/trepar.png", color: "#A16207", primitive: "sphere" },
     { id: 1, key: "tirolina", name: "Tirolina", icon2D: "Iconos 2D/tirolina.png", color: "#0891B2", primitive: "cylinder" },
-    { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder" },
+    { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder", isAdultEquipment: true },
     { id: 5, key: "columpio", name: "Columpio", icon2D: "Iconos 2D/columpio.png", color: "#2563EB", primitive: "cylinder" },
     { id: 6, key: "carrusel", name: "Carrusel", icon2D: "Iconos 2D/carrusel.png", color: "#9333EA", primitive: "cylinder" },
     { id: 7, key: "balancin", name: "Balancín", icon2D: "Iconos 2D/balancin.png", color: "#D97706", primitive: "cylinder" },
-    { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube" },
+    { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube", isAdultEquipment: true },
     { id: 13, key: "tobogan", name: "Tobogán", icon2D: "Iconos 2D/tobogan.png", color: "#EA580C", primitive: "cone" },
     { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/casa.png", color: "#6B7280", primitive: "cube" },
     { id: 16, key: "compactos", name: "Multijuego / Compactos", icon2D: "Iconos 2D/Multijuego.png", color: "#E11D48", primitive: "cube" },
     { id: 17, key: "elemento", name: "Elemento de juego", icon2D: "Iconos 2D/Elemento_juego.png", color: "#0D9488", primitive: "sphere" },
     { id: 18, key: "red", name: "Red de trepa", icon2D: "Iconos 2D/Red.png", color: "#4F46E5", primitive: "cone" },
-    { id: 20, key: "pingpong", name: "Ping pong", icon2D: "Iconos 2D/ping-pong.png", color: "#0284C7", primitive: "cube" }
+    { id: 20, key: "pingpong", name: "Mesas de pingpong", icon2D: "Iconos 2D/ping-pong.png", color: "#0284C7", primitive: "cube", isAdultEquipment: true }
   ];
+
+  // Catalog age labels in the inventory, mapped to numeric ranges for overlap matching
+  const AGE_CATALOG_RANGES = [
+    { codes: ["1-6"], min: 1, max: 6 },
+    { codes: ["3-6"], min: 3, max: 6 },
+    { codes: ["1-12"], min: 1, max: 12 },
+    { codes: ["3-12"], min: 3, max: 12 },
+    { codes: ["5-12"], min: 5, max: 12 },
+    { codes: ["6-12"], min: 6, max: 12 },
+    { codes: ["+14", "14+", "12+", "+12"], min: 14, max: 99 }
+  ];
+
+  function getAgeCatalogCodesForBand(bandKey) {
+    const matchesBand = {
+      small: (range) => range.min < 6 && range.max >= 1,
+      school: (range) => range.min <= 12 && range.max > 6,
+      adult: (range) => range.min >= 12
+    }[bandKey];
+
+    if (!matchesBand) return [];
+    return AGE_CATALOG_RANGES.filter(matchesBand).flatMap((range) => range.codes);
+  }
+
+  function buildAgeWhereClause(availableFields) {
+    const codes = getAgeCatalogCodesForBand(activeAgeFilter);
+    if (!codes.length) return null;
+
+    const inList = codes.map((code) => `'${code}'`).join(", ");
+    const fieldClauses = [];
+    if (availableFields.includes("EDAD")) fieldClauses.push(`EDAD IN (${inList})`);
+    if (availableFields.includes("EDAD_G")) fieldClauses.push(`EDAD_G IN (${inList})`);
+    return fieldClauses.length ? `(${fieldClauses.join(" OR ")})` : null;
+  }
+
+  // Playground surface textures by TIPOSUELO (domain codes + label variants in the inventory)
+  const SOIL_STYLE_MAP = [
+    { values: ["Arena"], file: "arena.png", color: [212, 184, 130], label: "Arena" },
+    { values: ["Arena rio", "Arena río"], file: "arena-rio.png", color: [186, 158, 108], label: "Arena de río" },
+    { values: ["Terreno natural"], file: "terreno-natural.png", color: [106, 148, 72], label: "Terreno natural" },
+    { values: ["Hormigon", "Hormigón"], file: "hormigon.png", color: [168, 168, 166], label: "Hormigón" },
+    { values: ["Caucho continuo"], file: "caucho.png", color: [176, 58, 46], label: "Caucho continuo" },
+    { values: ["Caucho arena rio", "Caucho y arena de río", "Caucho y arena de rio"], file: "caucho-arena.png", color: [176, 118, 78], label: "Caucho y arena" },
+    { values: ["Loseta caucho"], file: "loseta-caucho.png", color: [92, 68, 66], label: "Loseta de caucho" },
+    { values: ["Loseta caucho y C continuo", "Loseta caucho y C. continuo"], file: "loseta-mixto.png", color: [128, 78, 70], label: "Loseta y caucho continuo" },
+    { values: ["Corcho"], file: "corcho.png", color: [176, 132, 76], label: "Corcho" },
+    { values: ["-"], file: "suelo-default.png", color: [88, 140, 92], label: "Sin tipo de suelo" },
+    { values: ["PISCINA"], file: "piscina.png", color: [43, 164, 217], label: "Piscina" }
+  ];
+
+  const AREA_SURFACE_EXPRESSION = `
+    IIF(Upper(DefaultValue($feature.USO, '')) == 'PISCINA', 'PISCINA', DefaultValue($feature.TIPOSUELO, ''))
+  `;
+
+  function soilTextureUrl(fileName) {
+    return new URL(`texturas/${fileName}`, window.location.href).href;
+  }
+
+  function createSoilPictureFill(fileName, tilePx) {
+    const size = tilePx || 56;
+    return new PictureFillSymbol({
+      url: soilTextureUrl(fileName),
+      width: size,
+      height: size,
+      outline: { color: [36, 36, 36, 0.9], width: 1.25 }
+    });
+  }
+
+  function createSoilPolygon3DFill(color) {
+    const r = Math.min(255, Math.round(color[0] * 0.88 + 36));
+    const g = Math.min(255, Math.round(color[1] * 0.88 + 32));
+    const b = Math.min(255, Math.round(color[2] * 0.88 + 24));
+    return {
+      type: "polygon-3d",
+      symbolLayers: [
+        {
+          type: "fill",
+          material: { color: [r, g, b, 0.5] },
+          outline: { color: [32, 32, 32, 0.95], size: 1.45 }
+        }
+      ]
+    };
+  }
+
+  function getAreaPolygonRenderer(for3D, tilePx) {
+    const uniqueValueInfos = [];
+    SOIL_STYLE_MAP.forEach((style) => {
+      const symbol = for3D
+        ? createSoilPolygon3DFill(style.color)
+        : createSoilPictureFill(style.file, tilePx);
+      style.values.forEach((value) => {
+        uniqueValueInfos.push({ value, symbol, label: style.label });
+      });
+    });
+
+    const defaultSymbol = for3D
+      ? createSoilPolygon3DFill([88, 140, 92])
+      : createSoilPictureFill("suelo-default.png", tilePx);
+
+    return new UniqueValueRenderer({
+      valueExpression: AREA_SURFACE_EXPRESSION,
+      valueExpressionTitle: "Superficie",
+      defaultSymbol,
+      defaultLabel: "Sin tipo de suelo",
+      uniqueValueInfos
+    });
+  }
 
   // Active feature layers instances with schema info
   const activeLayers2D = [];
@@ -128,168 +255,176 @@ require([
     }
   }
 
-  // Token authentication
+  // Token only needed for private 3D arbolado. Public layers must keep working without it.
   async function fetchPortalToken() {
-    const tokenUrl = `${PORTAL_URL}/sharing/rest/generateToken`;
-    const formData = new URLSearchParams();
-    formData.append("username", "jmrojas");
-    formData.append("password", "Password.361790");
-    formData.append("referer", window.location.origin);
-    formData.append("f", "json");
+    try {
+      const tokenUrl = `${PORTAL_URL}/sharing/rest/generateToken`;
+      const formData = new URLSearchParams();
+      formData.append("username", "jmrojas");
+      formData.append("password", "Password.361790");
+      formData.append("referer", window.location.origin);
+      formData.append("f", "json");
 
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      body: formData
-    });
-
-    const data = await response.json();
-    if (data && data.token) {
-      portalToken = data.token;
-      IdentityManager.registerToken({
-        server: "https://sit.rivasciudad.es",
-        token: portalToken
+      const response = await fetch(tokenUrl, {
+        method: "POST",
+        body: formData
       });
-    } else {
-      throw new Error("No se pudo obtener el token de acceso al Portal.");
+
+      const data = await response.json();
+      if (data && data.token) {
+        portalToken = data.token;
+        IdentityManager.registerToken({
+          server: "https://sit.rivasciudad.es/server/rest/services/Visualizacion_arbolado_Rivamadrid_V3",
+          token: portalToken
+        });
+      } else {
+        console.warn("No se pudo obtener el token del arbolado 3D (capa privada).");
+      }
+    } catch (err) {
+      console.warn("Arbolado 3D no disponible sin autenticación:", err);
     }
   }
 
-  // Create Custom Popup Template for Play Elements with Photo Attachments
-  function createPlayElementPopupTemplate(layerConfig) {
-    return {
-      title: function(target) {
-        if (target && target.graphic && target.graphic.attributes) {
-          const attrs = target.graphic.attributes;
-          const tipo = attrs.TIPO || attrs.Tipo || (attrs.NAME && attrs.NAME.toLowerCase().includes("ping") ? "Ping pong" : null);
-          if (tipo && tipo.trim() !== "") return tipo;
-        }
-        return layerConfig.name;
-      },
-      content: [
-        {
-          type: "custom",
-          creator: function(target) {
-            const attrs = target.graphic ? (target.graphic.attributes || {}) : {};
-            
-            // Extract primary fields with fallbacks
-            const tipo = attrs.TIPO || attrs.Tipo || layerConfig.name;
-            const elemento = attrs.ELEMENTO || attrs.Elemento || attrs.NAME || attrs.Name || "";
-            const tipoSuelo = attrs.TIPOSUELO || attrs.TIPO_DE_SUELO || attrs.SUELO || attrs.Tipo_Suelo || attrs.TipoSuelo || "";
-            const edad = attrs.EDAD || attrs.Edad || attrs.EDAD_G || "";
-            const adaptado = attrs.ADAPTADO || attrs.Adaptado || "";
-            const inclusivo = attrs.INCLUSIVO || attrs.Inclusivo || "";
-            const uso = attrs.USO || attrs.Uso || "";
-            const ubicacion = attrs.UBICACION || attrs.Ubicacion || attrs.NOMBRE || "";
-            const fuente = attrs.FUENTE || "";
+  const POPUP_FIELD_LABELS = {
+    NOMBRE: "Nombre",
+    TIPO: "Tipo",
+    ELEMENTO: "Elemento",
+    USO: "Uso",
+    TIPOSUELO: "Tipo de suelo",
+    TIPO_DE_SUELO: "Tipo de suelo",
+    EDAD: "Edad recomendada",
+    EDAD_G: "Edad recomendada",
+    UBICACION: "Ubicación",
+    FUENTE: "Fuente de agua",
+    NAME: "Nombre"
+  };
 
-            // Calculate GPS Navigation Link
-            let lat = 40.352, lon = -3.528;
-            if (target.graphic && target.graphic.geometry) {
-              if (target.graphic.geometry.type === "point") {
-                lat = target.graphic.geometry.latitude || 40.352;
-                lon = target.graphic.geometry.longitude || -3.528;
-              } else if (target.graphic.geometry.extent) {
-                const center = target.graphic.geometry.extent.center;
-                lat = center.latitude || 40.352;
-                lon = center.longitude || -3.528;
+  const POPUP_CITIZEN_FIELDS = [
+    "NOMBRE", "NAME", "ELEMENTO", "TIPO", "USO", "TIPOSUELO", "TIPO_DE_SUELO",
+    "EDAD", "EDAD_G", "UBICACION", "FUENTE"
+  ];
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function popupHasValue(val) {
+    if (val === null || val === undefined) return false;
+    const text = String(val).trim();
+    return text !== "" && text !== "-" && !/^(n\/a|null|undefined)$/i.test(text);
+  }
+
+  function popupSameText(a, b) {
+    return popupHasValue(a) && popupHasValue(b)
+      && String(a).trim().toUpperCase() === String(b).trim().toUpperCase();
+  }
+
+  function getPopupGraphic(input) {
+    if (!input) return null;
+    if (input.graphic) return input.graphic;
+    if (input.attributes) return input;
+    return null;
+  }
+
+  function getPlayPopupTitle(attrs, layerConfig) {
+    const nombre = attrs.NOMBRE || attrs.UBICACION || "";
+    const elemento = attrs.ELEMENTO || attrs.Elemento || attrs.NAME || "";
+    const tipo = attrs.TIPO || attrs.Tipo || "";
+    if (layerConfig.isPolygon && popupHasValue(nombre)) return nombre;
+    if (popupHasValue(elemento)) return elemento;
+    if (popupHasValue(nombre)) return nombre;
+    if (popupHasValue(tipo)) return tipo;
+    return layerConfig.name;
+  }
+
+  function applyPlayPopupTemplate(layer, layerConfig) {
+    if (!layer) return;
+    try {
+      layer.popupEnabled = true;
+      layer.popupTemplate = {
+        title: layerConfig.name,
+        lastEditInfoEnabled: false,
+        content: [
+          {
+            type: "custom",
+            creator: function(input) {
+              const graphic = getPopupGraphic(input);
+              const attrs = graphic ? (graphic.attributes || {}) : {};
+              const adaptado = attrs.ADAPTADO || attrs.Adaptado || "";
+              const inclusivo = attrs.INCLUSIVO || attrs.Inclusivo || "";
+              const heading = getPlayPopupTitle(attrs, layerConfig);
+              const shownLabels = {};
+
+              let lat = 40.352;
+              let lon = -3.528;
+              if (graphic && graphic.geometry) {
+                if (graphic.geometry.type === "point") {
+                  lat = graphic.geometry.latitude || lat;
+                  lon = graphic.geometry.longitude || lon;
+                } else if (graphic.geometry.extent) {
+                  const center = graphic.geometry.extent.center;
+                  lat = center.latitude || lat;
+                  lon = center.longitude || lon;
+                }
               }
-            }
 
-            const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+              const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+              let rowsHtml = "";
+              POPUP_CITIZEN_FIELDS.forEach((fieldName) => {
+                const val = attrs[fieldName];
+                if (!popupHasValue(val)) return;
+                if (popupSameText(val, heading)) return;
+                const label = POPUP_FIELD_LABELS[fieldName] || fieldName;
+                if (shownLabels[label]) return;
+                shownLabels[label] = true;
+                rowsHtml += `<div class="popup-detail-row"><strong>${escapeHtml(label)}:</strong> <span>${escapeHtml(val)}</span></div>`;
+              });
 
-            // Build html rows for significant fields
-            let rowsHtml = "";
-
-            if (tipo) {
-              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-tag"></i> Tipo:</strong> <span>${tipo}</span></div>`;
-            }
-            if (elemento && elemento.toUpperCase() !== tipo.toUpperCase()) {
-              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-shapes"></i> Elemento:</strong> <span>${elemento}</span></div>`;
-            }
-            if (tipoSuelo && tipoSuelo.toString().toUpperCase() !== "N/A") {
-              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-layer-group"></i> Tipo Suelo:</strong> <span>${tipoSuelo}</span></div>`;
-            }
-            if (edad) {
-              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-child"></i> Edad:</strong> <span>${edad}</span></div>`;
-            }
-            if (uso) {
-              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-users"></i> Uso:</strong> <span>${uso}</span></div>`;
-            }
-            if (ubicacion && ubicacion.toUpperCase() !== tipo.toUpperCase()) {
-              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-location-dot"></i> Ubicación:</strong> <span>${ubicacion}</span></div>`;
-            }
-            if (fuente) {
-              rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-circle-info"></i> Fuente:</strong> <span>${fuente}</span></div>`;
-            }
-
-            // Internal fields filter pattern (code fields & system attributes)
-            const internalFieldsRegex = /^(objectid|globalid|shape|shape__area|shape__length|shape_length|shape_area|fid|st_length|st_area|created_.*|last_edited_.*|codigo.*|cod_.*|id_.*|id$|guid$|point_x|point_y|point_z|eliminado|creador|f_creador|ultimo_editor|f_ultimo_editor|gis_produccion.*)/i;
-
-            // List of upper-cased keys already handled above
-            const handledKeys = [
-              'TIPO', 'ELEMENTO', 'NAME', 'TIPOSUELO', 'TIPO_DE_SUELO', 'SUELO',
-              'EDAD', 'EDAD_G', 'ADAPTADO', 'INCLUSIVO', 'USO', 'UBICACION', 'NOMBRE', 'FUENTE'
-            ];
-
-            // Render remaining significant fields dynamically
-            Object.keys(attrs).forEach(key => {
-              if (handledKeys.includes(key.toUpperCase())) return;
-              if (internalFieldsRegex.test(key)) return;
-
-              const val = attrs[key];
-              if (val !== null && val !== undefined && val !== "" && val !== "N/A" && val !== "Null" && val !== "null") {
-                const formattedLabel = key.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-                rowsHtml += `<div class="popup-detail-row"><strong><i class="fa-solid fa-circle-dot"></i> ${formattedLabel}:</strong> <span>${val}</span></div>`;
+              let tagsHtml = "";
+              if (popupHasValue(adaptado) || popupHasValue(inclusivo)) {
+                tagsHtml = `<div class="popup-tags">`;
+                if (popupHasValue(adaptado)) {
+                  const isSi = String(adaptado).toUpperCase() === "SI";
+                  tagsHtml += `<span class="popup-tag ${isSi ? "adapted" : "not-adapted"}"><i class="fa-solid fa-wheelchair"></i> Adaptado: ${escapeHtml(adaptado)}</span>`;
+                }
+                if (popupHasValue(inclusivo)) {
+                  const isSi = String(inclusivo).toUpperCase() === "SI";
+                  tagsHtml += `<span class="popup-tag ${isSi ? "inclusive" : "not-inclusive"}"><i class="fa-solid fa-hands-holding-child"></i> Inclusivo: ${escapeHtml(inclusivo)}</span>`;
+                }
+                tagsHtml += `</div>`;
               }
-            });
 
-            // Accessibility badges for Adaptado & Inclusivo
-            let tagsHtml = "";
-            if (adaptado || inclusivo) {
-              tagsHtml = `<div class="popup-tags" style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">`;
-              if (adaptado) {
-                const isSi = adaptado.toString().toUpperCase() === "SI";
-                tagsHtml += `<span class="popup-tag ${isSi ? 'adapted' : 'not-adapted'}"><i class="fa-solid fa-wheelchair"></i> Adaptado: ${adaptado}</span>`;
-              }
-              if (inclusivo) {
-                const isSi = inclusivo.toString().toUpperCase() === "SI";
-                tagsHtml += `<span class="popup-tag ${isSi ? 'inclusive' : 'not-inclusive'}"><i class="fa-solid fa-hands-holding-child"></i> Inclusivo: ${inclusivo}</span>`;
-              }
-              tagsHtml += `</div>`;
+              const container = document.createElement("div");
+              container.className = "popup-custom-card";
+              container.innerHTML = `
+                <div class="popup-lead">${escapeHtml(heading)}</div>
+                <div class="popup-details-list">${rowsHtml}</div>
+                ${tagsHtml}
+                <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route">
+                  <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
+                </a>
+              `;
+              return container;
             }
-
-            const container = document.createElement("div");
-            container.className = "popup-custom-card";
-            container.innerHTML = `
-              <div class="popup-details-list" style="font-size: 0.88rem; color: #334155; display: flex; flex-direction: column; gap: 6px;">
-                ${rowsHtml}
-              </div>
-
-              ${tagsHtml}
-
-              <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route" style="margin-top: 10px;">
-                <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
-              </a>
-            `;
-            return container;
+          },
+          {
+            type: "attachments"
           }
-        },
-        {
-          type: "attachments" // Native ArcGIS attachment gallery/photos
-        }
-      ]
-    };
+        ]
+      };
+    } catch (err) {
+      console.warn("No se pudo aplicar el popup:", layerConfig && layerConfig.name, err);
+    }
   }
 
   // Helper renderer for 2D symbols
   function get2DRenderer(config) {
     if (config.isPolygon) {
-      return new SimpleRenderer({
-        symbol: new SimpleFillSymbol({
-          color: [0, 122, 61, 0.25],
-          outline: { color: [0, 122, 61, 0.9], width: 2 }
-        })
-      });
+      return getAreaPolygonRenderer(false);
     }
 
     return new SimpleRenderer({
@@ -301,15 +436,10 @@ require([
     });
   }
 
-  // Helper renderer for 3D Perspective Billboard Icons
+  // Helper renderer for 3D Perspective Billboard Icons planted on the ground
   function get3DRenderer(config) {
     if (config.isPolygon) {
-      return new SimpleRenderer({
-        symbol: new SimpleFillSymbol({
-          color: [0, 122, 61, 0.35],
-          outline: { color: [0, 122, 61, 1], width: 2 }
-        })
-      });
+      return getAreaPolygonRenderer(false, 36);
     }
 
     const absIconUrl = new URL(config.icon2D, window.location.href).href;
@@ -318,7 +448,8 @@ require([
         symbolLayers: [
           new IconSymbol3DLayer({
             resource: { href: absIconUrl },
-            size: 32
+            size: perfProfile.iconSize,
+            anchor: "bottom"
           })
         ]
       })
@@ -326,7 +457,40 @@ require([
   }
 
   // Helper renderer for Photorealistic 3D WebStyle Tree Symbol scaling by field ALTURA
+  const TREE_HEIGHT_ARCADE = `
+    var h = DefaultValue($feature.ALTURA, 8);
+    if (h > 120) { h = h / 100; }
+    return IIF(h < 3, 3, IIF(h > 22, 22, h));
+  `;
+
   function get3DTreeRenderer() {
+    if (!perfProfile.realisticTrees) {
+      return new SimpleRenderer({
+        symbol: {
+          type: "point-3d",
+          symbolLayers: [
+            {
+              type: "object",
+              resource: { primitive: "cone" },
+              material: { color: [46, 120, 52] },
+              width: 2.4,
+              depth: 2.4,
+              height: 8,
+              anchor: "bottom"
+            }
+          ]
+        },
+        visualVariables: [
+          {
+            type: "size",
+            axis: "height",
+            valueExpression: TREE_HEIGHT_ARCADE,
+            valueUnit: "meters"
+          }
+        ]
+      });
+    }
+
     const treeSymbol = new WebStyleSymbol({
       name: "Acer",
       styleName: "EsriRealisticTreesStyle"
@@ -337,15 +501,8 @@ require([
       visualVariables: [
         {
           type: "size",
-          field: "ALTURA",
           axis: "height",
-          valueUnit: "meters"
-        },
-        {
-          type: "size",
-          field: "ALTURA",
-          axis: "width-and-depth",
-          expression: "IIF($feature.ALTURA > 0, $feature.ALTURA * 0.75, 4.5)",
+          valueExpression: TREE_HEIGHT_ARCADE,
           valueUnit: "meters"
         }
       ]
@@ -355,143 +512,42 @@ require([
   // Setup Maps & Views
   function setupMapsAndViews() {
     map2D = new Map({ basemap: activeBasemap });
-    map3D = new Map({ basemap: activeBasemap, ground: "world-topobathymetry" });
+    map3D = new Map({ basemap: activeBasemap, ground: "world-elevation" });
 
-    // Add 3D OpenStreetMap Buildings Layer
+    // Add 3D OpenStreetMap Buildings Layer (public)
     try {
       buildings3DLayer = new SceneLayer({
         url: BUILDINGS_3D_URL,
-        title: "Edificios 3D Municipal",
-        popupEnabled: false
+        title: "Edificios 3D OSM",
+        popupEnabled: false,
+        visible: perfProfile.osmBuildings,
+        minScale: 8000,
+        opacity: 0.55,
+        renderer: new SimpleRenderer({
+          symbol: {
+            type: "mesh-3d",
+            symbolLayers: [
+              {
+                type: "fill",
+                material: {
+                  color: [176, 180, 186, 0.9],
+                  colorMixMode: "replace"
+                }
+              }
+            ]
+          }
+        })
       });
       map3D.add(buildings3DLayer);
     } catch (e) {
       console.warn("3D Buildings load warning:", e);
     }
 
-    // Add Photorealistic 3D Tree Layer (Visualizacion_arbolado_Rivamadrid_V3 - ID: ce35426da80045328ece3d2b87fbc948)
-    try {
-      arboladoLayer3D = new FeatureLayer({
-        url: `${ARBOLADO_V3_URL}?token=${portalToken}`,
-        title: "Todos los Árboles (Arbolado 3D)",
-        outFields: ["*"],
-        labelsVisible: false,
-        labelingInfo: null,
-        elevationInfo: { mode: "on-the-ground" },
-        renderer: get3DTreeRenderer()
-      });
-      map3D.add(arboladoLayer3D);
-    } catch (e) {
-      console.warn("Arbolado 3D layer error:", e);
-    }
-
-    // Helper to sanitize building names
-    function sanitizeBuildingName(name) {
-      if (!name) return "";
-      return name
-        .replace(/\bTELGRAFO\b/gi, "TELÉGRAFO")
-        .replace(/\bSANTA MNICA\b/gi, "SANTA MÓNICA")
-        .replace(/\b1 MAYO\b/gi, "1º MAYO")
-        .replace(/\bCIGEAS\b/gi, "CIGÜEÑAS")
-        .replace(/\bCHACN\b/gi, "CHACÓN")
-        .trim();
-    }
-
-    // 2D Municipal Buildings Layer (Bottom layer in 2D map)
-    try {
-      edificiosMuniLayer2D = new FeatureLayer({
-        url: `${EDIFICIOS_MUNI_URL}?token=${portalToken}`,
-        title: "Edificios Municipales 2D",
-        outFields: ["*"],
-        popupEnabled: false,
-        renderer: new SimpleRenderer({
-          symbol: new SimpleFillSymbol({
-            color: [226, 232, 240, 0.3],
-            outline: { color: [148, 163, 184, 0.5], width: 1 }
-          })
-        })
-      });
-      map2D.add(edificiosMuniLayer2D);
-    } catch (e) {
-      console.warn("2D Municipal buildings error:", e);
-    }
-
-    // Add 3D Municipal Buildings Layer (Extruded 6m 3D Shapes - Neutral 3D 1.0 style)
-    try {
-      edificiosMuniLayer3D = new FeatureLayer({
-        url: `${EDIFICIOS_MUNI_URL}?token=${portalToken}`,
-        title: "Edificios Municipales 3D",
-        outFields: ["*"],
-        elevationInfo: { mode: "relative-to-ground", offset: 0 },
-        renderer: new SimpleRenderer({
-          symbol: {
-            type: "polygon-3d",
-            symbolLayers: [
-              {
-                type: "extrude",
-                size: 6,
-                material: { color: [241, 245, 249, 0.5] },
-                edges: {
-                  type: "solid",
-                  color: [148, 163, 184, 0.7],
-                  size: 1
-                }
-              }
-            ]
-          }
-        }),
-        labelsVisible: true,
-        labelingInfo: [
-          {
-            labelExpressionInfo: {
-              expression: "var n = IIF(!IsEmpty($feature.DESCRIP), $feature.DESCRIP, $feature.ID_CONJUNTO); return IIF(IsEmpty(n), '', n);"
-            },
-            labelPlacement: "above-center",
-            symbol: {
-              type: "label-3d",
-              symbolLayers: [
-                {
-                  type: "text",
-                  material: { color: "#0F172A" },
-                  font: { size: 9.5, family: "Outfit", weight: "bold" },
-                  halo: { color: "#FFFFFF", size: 1.8 }
-                }
-              ]
-            }
-          }
-        ],
-        popupTemplate: {
-          title: function(target) {
-            const a = target.graphic ? target.graphic.attributes : {};
-            return sanitizeBuildingName(a.DESCRIP || a.ID_CONJUNTO) || "Edificio Municipal";
-          },
-          content: function(target) {
-            const a = target.graphic ? target.graphic.attributes : {};
-            const nombre = sanitizeBuildingName(a.DESCRIP || a.ID_CONJUNTO) || "Edificio Municipal";
-            const cat = a.ATRIBUTO || "Servicio Municipal";
-            const container = document.createElement("div");
-            container.className = "popup-custom-card";
-            container.innerHTML = `
-              <div style="display:flex; flex-direction:column; gap:6px; font-size:0.9rem; color:#334155;">
-                <div><strong><i class="fa-solid fa-building-flag"></i> Edificio:</strong> <span>${nombre}</span></div>
-                <div><strong><i class="fa-solid fa-tag"></i> Categoría:</strong> <span>${cat}</span></div>
-              </div>
-            `;
-            return container;
-          }
-        }
-      });
-      map3D.add(edificiosMuniLayer3D);
-
-    } catch (e) {
-      console.warn("Edificios Municipales 3D error:", e);
-    }
-
     // Create 2D & 3D Feature Layers (Ensure polygon layers are added FIRST so they sit at the bottom of the map)
     const sortedConfigs = [...GAME_LAYERS_CONFIG].sort((a, b) => (b.isPolygon ? 1 : 0) - (a.isPolygon ? 1 : 0));
 
     sortedConfigs.forEach(cfg => {
-      const url = `${SERVER_URL}/${cfg.id}?token=${portalToken}`;
+      const url = `${SERVER_URL}/${cfg.id}`;
       
       const layer2D = new FeatureLayer({
         url: url,
@@ -499,8 +555,7 @@ require([
         outFields: ["*"],
         labelsVisible: false,
         labelingInfo: null,
-        renderer: get2DRenderer(cfg),
-        popupTemplate: createPlayElementPopupTemplate(cfg)
+        renderer: get2DRenderer(cfg)
       });
 
       const layer3D = new FeatureLayer({
@@ -509,20 +564,35 @@ require([
         outFields: ["*"],
         labelsVisible: false,
         labelingInfo: null,
-        elevationInfo: cfg.isPolygon 
-          ? { mode: "relative-to-ground", offset: 6.2 } 
-          : { mode: "relative-to-ground", offset: 8 },
-        renderer: get3DRenderer(cfg),
-        popupTemplate: createPlayElementPopupTemplate(cfg)
+        opacity: cfg.isPolygon ? 0.82 : 1,
+        elevationInfo: cfg.isPolygon
+          ? { mode: "on-the-ground" }
+          : { mode: "relative-to-ground", offset: 0.55 },
+        renderer: get3DRenderer(cfg)
       });
 
+      let areaCatcher3D = null;
+      if (cfg.isPolygon) {
+        areaCatcher3D = new FeatureLayer({
+          url: url,
+          title: `${cfg.name} sombra`,
+          outFields: ["*"],
+          legendEnabled: false,
+          listMode: "hide",
+          popupEnabled: true,
+          labelsVisible: false,
+          elevationInfo: { mode: "on-the-ground" },
+          renderer: getAreaPolygonRenderer(true)
+        });
+        map3D.add(areaCatcher3D);
+      }
+
       activeLayers2D.push({ config: cfg, layer: layer2D, fields: [] });
-      activeLayers3D.push({ config: cfg, layer: layer3D, fields: [] });
+      activeLayers3D.push({ config: cfg, layer: layer3D, catcher: areaCatcher3D, fields: [] });
 
       map2D.add(layer2D);
       map3D.add(layer3D);
 
-      // Inspect layer schema to know available fields
       layer2D.when(() => {
         const item2D = activeLayers2D.find(x => x.config.id === cfg.id);
         const item3D = activeLayers3D.find(x => x.config.id === cfg.id);
@@ -531,6 +601,11 @@ require([
           if (item2D) item2D.fields = names;
           if (item3D) item3D.fields = names;
         }
+        applyPlayPopupTemplate(layer2D, cfg);
+      });
+      layer3D.when(() => {
+        applyPlayPopupTemplate(layer3D, cfg);
+        if (areaCatcher3D) applyPlayPopupTemplate(areaCatcher3D, cfg);
       });
     });
 
@@ -544,16 +619,22 @@ require([
       center: [-3.528, 40.352],
       zoom: 13
     });
-    view2D.popup.autoNavigateEnabled = false;
-    view2D.popup.dockEnabled = true;
-    view2D.popup.dockOptions = {
-      buttonEnabled: false,
-      breakpoint: false,
-      position: "top-center"
-    };
-    view2D.popup.goToOverride = function() {
-      return Promise.resolve();
-    };
+    try {
+      if (view2D.popup) {
+        view2D.popup.autoNavigateEnabled = false;
+        view2D.popup.dockEnabled = true;
+        view2D.popup.dockOptions = {
+          buttonEnabled: false,
+          breakpoint: false,
+          position: "top-center"
+        };
+        view2D.popup.goToOverride = function() {
+          return Promise.resolve();
+        };
+      }
+    } catch (popupErr) {
+      console.warn("Popup 2D config:", popupErr);
+    }
 
     currentView = view2D;
 
@@ -569,6 +650,26 @@ require([
         setUserNearMePoint(evt.mapPoint);
       }
     });
+  }
+
+  function ensureArboladoLayer() {
+    if (arboladoLayer3D || !portalToken) return;
+    try {
+      arboladoLayer3D = new FeatureLayer({
+        url: `${ARBOLADO_V3_URL}?token=${portalToken}`,
+        title: "Todos los Árboles (Arbolado 3D)",
+        outFields: ["ALTURA"],
+        labelsVisible: false,
+        labelingInfo: null,
+        minScale: perfProfile.treeMinScale,
+        definitionExpression: "ALTURA >= 3 AND ALTURA <= 40",
+        elevationInfo: { mode: "relative-to-ground", offset: 0.15 },
+        renderer: get3DTreeRenderer()
+      });
+      map3D.add(arboladoLayer3D);
+    } catch (e) {
+      console.warn("Arbolado 3D layer error:", e);
+    }
   }
 
   // Switch between 2D and 3D views using clean container swap
@@ -587,6 +688,7 @@ require([
       view3D = new SceneView({
         container: "viewDiv",
         map: map3D,
+        qualityProfile: perfProfile.qualityProfile,
         camera: {
           position: { longitude: -3.528, latitude: 40.320, z: 7500 },
           heading: 0,
@@ -595,29 +697,58 @@ require([
         timeZone: "Europe/Madrid",
         environment: {
           lighting: new SunLighting({
-            directShadowsEnabled: true,
-            displayUTCOffset: 2, // UTC+2 (España Horario de Verano CEST)
+            directShadowsEnabled: false,
+            displayUTCOffset: 2,
             date: new Date(2026, 7, 10, 12, 0, 0)
           }),
+          atmosphereEnabled: perfProfile.atmosphere,
+          starsEnabled: false,
           weather: {
             type: "sunny"
           }
         }
       });
-      view3D.popup.autoNavigateEnabled = false;
-      view3D.popup.dockEnabled = true;
-      view3D.popup.dockOptions = {
-        buttonEnabled: false,
-        breakpoint: false,
-        position: "top-center"
-      };
-      view3D.popup.goToOverride = function() {
-        return Promise.resolve();
-      };
+      if (view3D.popup) {
+        view3D.popup.autoNavigateEnabled = false;
+        view3D.popup.dockEnabled = true;
+        view3D.popup.dockOptions = {
+          buttonEnabled: false,
+          breakpoint: false,
+          position: "top-center"
+        };
+        view3D.popup.goToOverride = function() {
+          return Promise.resolve();
+        };
+      }
 
-      view3D.on("click", (evt) => {
+      view3D.on("click", async (evt) => {
         if (isNearMeTabActive() && evt.mapPoint) {
           setUserNearMePoint(evt.mapPoint);
+          return;
+        }
+        try {
+          const hit = await view3D.hitTest(evt);
+          const clickedPoint = hit.results.some((result) => {
+            const layer = result.graphic && result.graphic.layer;
+            return activeLayers3D.some((item) => item.layer === layer && !item.config.isPolygon);
+          });
+          if (clickedPoint) return;
+
+          const areaLayers = activeLayers3D
+            .filter((item) => item.config.isPolygon)
+            .flatMap((item) => [item.catcher, item.layer].filter(Boolean));
+          if (!areaLayers.length) return;
+
+          const areaHit = await view3D.hitTest(evt, { include: areaLayers });
+          const graphic = areaHit.results[0] && areaHit.results[0].graphic;
+          if (graphic && view3D.popup) {
+            view3D.popup.open({
+              features: [graphic],
+              location: evt.mapPoint
+            });
+          }
+        } catch (err) {
+          console.warn("Popup zona 3D:", err);
         }
       });
     } else {
@@ -626,6 +757,11 @@ require([
     }
 
     currentView = view3D;
+
+    const treeToggle = document.getElementById("treeLayerToggle");
+    if (treeToggle && treeToggle.checked) {
+      ensureArboladoLayer();
+    }
   }
 
   function switchTo2DMode() {
@@ -654,39 +790,55 @@ require([
     document.getElementById("weatherWidgetContainer").classList.remove("active");
   }
 
+  function createGameTypeItem(cfg) {
+    const item = document.createElement("div");
+    item.className = "game-type-item";
+    item.dataset.id = cfg.id;
+
+    item.innerHTML = `
+      <div class="type-info">
+        <img src="${cfg.icon2D}" alt="${cfg.name}" class="type-icon">
+        <span class="type-name">${cfg.name}</span>
+      </div>
+      <span class="type-count" id="count-${cfg.id}">0</span>
+    `;
+    item.addEventListener("click", () => selectGameType(cfg.id, item));
+    return item;
+  }
+
+  function createListSection(title, iconClass) {
+    const header = document.createElement("div");
+    header.className = "game-list-section";
+    header.innerHTML = `<i class="${iconClass}"></i><span>${title}</span>`;
+    return header;
+  }
+
   // Populate Sidebar List of Game Types
   function renderGameTypeListUI() {
     const container = document.getElementById("gameTypeList");
     container.innerHTML = "";
 
-    // "Todos" item
     const allItem = document.createElement("div");
     allItem.className = "game-type-item active";
     allItem.dataset.id = "all";
     allItem.innerHTML = `
       <div class="type-info">
         <i class="fa-solid fa-border-all" style="font-size:1.4rem; color: var(--primary);"></i>
-        <span class="type-name">Todos los elementos</span>
+        <span class="type-name">Todo el inventario</span>
       </div>
       <span class="type-count" id="count-all">...</span>
     `;
     allItem.addEventListener("click", () => selectGameType(null, allItem));
     container.appendChild(allItem);
 
-    // List individual game types
-    GAME_LAYERS_CONFIG.forEach(cfg => {
-      const item = document.createElement("div");
-      item.className = "game-type-item";
-      item.dataset.id = cfg.id;
-      item.innerHTML = `
-        <div class="type-info">
-          <img src="${cfg.icon2D}" alt="${cfg.name}" class="type-icon">
-          <span class="type-name">${cfg.name}</span>
-        </div>
-        <span class="type-count" id="count-${cfg.id}">0</span>
-      `;
-      item.addEventListener("click", () => selectGameType(cfg.id, item));
-      container.appendChild(item);
+    container.appendChild(createListSection("Elementos", "fa-solid fa-shapes"));
+    GAME_LAYERS_CONFIG.filter(cfg => !cfg.isPolygon).forEach(cfg => {
+      container.appendChild(createGameTypeItem(cfg));
+    });
+
+    container.appendChild(createListSection("Zonas", "fa-solid fa-draw-polygon"));
+    GAME_LAYERS_CONFIG.filter(cfg => cfg.isPolygon).forEach(cfg => {
+      container.appendChild(createGameTypeItem(cfg));
     });
   }
 
@@ -700,108 +852,74 @@ require([
     applyCombinedFilters();
   }
 
+  function layerMatchesCurrentSelection(item) {
+    return activeSelectedGameId === null || item.config.id === activeSelectedGameId;
+  }
+
+  function buildAttributeWhereClauses(item) {
+    if (item.config.isPolygon) return [];
+
+    const availableFields = item.fields || [];
+    const hasEdad = availableFields.includes("EDAD") || availableFields.includes("EDAD_G");
+    const hasAdaptado = availableFields.includes("ADAPTADO");
+    const hasInclusivo = availableFields.includes("INCLUSIVO");
+    const isAdultEquipment = !!item.config.isAdultEquipment;
+    const skipAgeConstraint = activeAgeFilter === "adult" && isAdultEquipment;
+
+    if (activeAgeFilter && !hasEdad && !skipAgeConstraint) return null;
+    if (activeAdaptedFilter && !hasAdaptado) return null;
+    if (activeInclusiveFilter && !hasInclusivo) return null;
+
+    const whereClauses = [];
+
+    if (activeAgeFilter && hasEdad && !skipAgeConstraint) {
+      const ageClause = buildAgeWhereClause(availableFields);
+      if (ageClause) whereClauses.push(ageClause);
+    }
+
+    if (activeAdaptedFilter && hasAdaptado) {
+      whereClauses.push(`ADAPTADO = '${activeAdaptedFilter}'`);
+    }
+
+    if (activeInclusiveFilter && hasInclusivo) {
+      whereClauses.push(`INCLUSIVO = '${activeInclusiveFilter}'`);
+    }
+
+    return whereClauses;
+  }
+
+  function applyFiltersToLayerSet(layerSet) {
+    layerSet.forEach(item => {
+      const syncCatcher = (visible, whereExpr) => {
+        if (!item.catcher) return;
+        item.catcher.visible = visible;
+        if (whereExpr !== undefined) item.catcher.definitionExpression = whereExpr;
+      };
+
+      if (!layerMatchesCurrentSelection(item)) {
+        item.layer.visible = false;
+        syncCatcher(false);
+        return;
+      }
+
+      const whereClauses = buildAttributeWhereClauses(item);
+      if (whereClauses === null) {
+        item.layer.visible = false;
+        syncCatcher(false);
+        return;
+      }
+
+      const whereExpr = whereClauses.length > 0 ? whereClauses.join(" AND ") : "1=1";
+      item.layer.definitionExpression = whereExpr;
+      item.layer.visible = true;
+      syncCatcher(true, whereExpr);
+    });
+  }
+
   // Apply Combined Filter safely checking fields for each sublayer
   function applyCombinedFilters() {
-    // Process 2D Layers
-    activeLayers2D.forEach(item => {
-      const matchesGame = (activeSelectedGameId === null || item.config.id === activeSelectedGameId);
-      
-      if (!matchesGame) {
-        item.layer.visible = false;
-        return;
-      }
-
-      const availableFields = item.fields || [];
-      const hasEdad = availableFields.includes("EDAD") || availableFields.includes("EDAD_G");
-      const hasAdaptado = availableFields.includes("ADAPTADO");
-      const hasInclusivo = availableFields.includes("INCLUSIVO");
-
-      if (activeAgeFilter && !hasEdad) {
-        item.layer.visible = false;
-        return;
-      }
-      if (activeAdaptedFilter && !hasAdaptado) {
-        item.layer.visible = false;
-        return;
-      }
-      if (activeInclusiveFilter && !hasInclusivo) {
-        item.layer.visible = false;
-        return;
-      }
-
-      const whereClauses = [];
-
-      if (activeAgeFilter && hasEdad) {
-        if (availableFields.includes("EDAD_G")) {
-          whereClauses.push(`(EDAD = '${activeAgeFilter}' OR EDAD_G = '${activeAgeFilter}')`);
-        } else {
-          whereClauses.push(`EDAD = '${activeAgeFilter}'`);
-        }
-      }
-
-      if (activeAdaptedFilter && hasAdaptado) {
-        whereClauses.push(`ADAPTADO = '${activeAdaptedFilter}'`);
-      }
-
-      if (activeInclusiveFilter && hasInclusivo) {
-        whereClauses.push(`INCLUSIVO = '${activeInclusiveFilter}'`);
-      }
-
-      const sqlExpr = whereClauses.length > 0 ? whereClauses.join(" AND ") : "1=1";
-      item.layer.definitionExpression = sqlExpr;
-      item.layer.visible = true;
-    });
-
-    // Process 3D Layers
-    activeLayers3D.forEach(item => {
-      const matchesGame = (activeSelectedGameId === null || item.config.id === activeSelectedGameId);
-
-      if (!matchesGame) {
-        item.layer.visible = false;
-        return;
-      }
-
-      const availableFields = item.fields || [];
-      const hasEdad = availableFields.includes("EDAD") || availableFields.includes("EDAD_G");
-      const hasAdaptado = availableFields.includes("ADAPTADO");
-      const hasInclusivo = availableFields.includes("INCLUSIVO");
-
-      if (activeAgeFilter && !hasEdad) {
-        item.layer.visible = false;
-        return;
-      }
-      if (activeAdaptedFilter && !hasAdaptado) {
-        item.layer.visible = false;
-        return;
-      }
-      if (activeInclusiveFilter && !hasInclusivo) {
-        item.layer.visible = false;
-        return;
-      }
-
-      const whereClauses = [];
-
-      if (activeAgeFilter && hasEdad) {
-        if (availableFields.includes("EDAD_G")) {
-          whereClauses.push(`(EDAD = '${activeAgeFilter}' OR EDAD_G = '${activeAgeFilter}')`);
-        } else {
-          whereClauses.push(`EDAD = '${activeAgeFilter}'`);
-        }
-      }
-
-      if (activeAdaptedFilter && hasAdaptado) {
-        whereClauses.push(`ADAPTADO = '${activeAdaptedFilter}'`);
-      }
-
-      if (activeInclusiveFilter && hasInclusivo) {
-        whereClauses.push(`INCLUSIVO = '${activeInclusiveFilter}'`);
-      }
-
-      const sqlExpr = whereClauses.length > 0 ? whereClauses.join(" AND ") : "1=1";
-      item.layer.definitionExpression = sqlExpr;
-      item.layer.visible = true;
-    });
-
+    applyFiltersToLayerSet(activeLayers2D);
+    applyFiltersToLayerSet(activeLayers3D);
     updateFeatureCounts();
   }
 
@@ -1126,10 +1244,14 @@ require([
       sidebar.classList.toggle("open");
     });
 
-    // Filter Controls Handlers
-    document.getElementById("ageFilterSelect").addEventListener("change", (e) => {
-      activeAgeFilter = e.target.value;
-      applyCombinedFilters();
+    // Chips for recommended age stage
+    document.querySelectorAll("#ageChips .chip-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#ageChips .chip-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeAgeFilter = btn.dataset.value;
+        applyCombinedFilters();
+      });
     });
 
     // Chips for Adapted
@@ -1159,8 +1281,8 @@ require([
       activeAdaptedFilter = "";
       activeInclusiveFilter = "";
 
-      document.getElementById("ageFilterSelect").value = "";
       document.querySelectorAll(".chip-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll("#ageChips .chip-btn")[0].classList.add("active");
       document.querySelectorAll("#adaptedChips .chip-btn")[0].classList.add("active");
       document.querySelectorAll("#inclusiveChips .chip-btn")[0].classList.add("active");
 
@@ -1232,32 +1354,13 @@ require([
     // 3D Tree Layer Toggle Switch
     const treeToggle = document.getElementById("treeLayerToggle");
     if (treeToggle) {
+      treeToggle.checked = !perfProfile.isLowPower;
       treeToggle.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          ensureArboladoLayer();
+        }
         if (arboladoLayer3D) {
           arboladoLayer3D.visible = e.target.checked;
-        }
-      });
-    }
-
-    // 3D Municipal Buildings Carteles Toggle Switch
-    const edificiosToggle = document.getElementById("edificios3DToggle");
-    if (edificiosToggle) {
-      edificiosToggle.addEventListener("change", (e) => {
-        if (edificiosMuniLayer2D) {
-          edificiosMuniLayer2D.visible = e.target.checked;
-        }
-        if (edificiosMuniLayer3D) {
-          edificiosMuniLayer3D.visible = e.target.checked;
-        }
-      });
-    }
-
-    // Municipal Building Labels Toggle Switch
-    const edificiosLabelsToggle = document.getElementById("edificiosLabelsToggle");
-    if (edificiosLabelsToggle) {
-      edificiosLabelsToggle.addEventListener("change", (e) => {
-        if (edificiosMuniLayer3D) {
-          edificiosMuniLayer3D.labelsVisible = e.target.checked;
         }
       });
     }
@@ -1276,11 +1379,19 @@ require([
 
       daylightContainer.classList.toggle("active");
 
-      if (daylightContainer.classList.contains("active") && !daylightWidget && view3D) {
-        daylightWidget = new Daylight({
-          view: view3D,
-          container: daylightContainer
-        });
+      if (daylightContainer.classList.contains("active") && view3D) {
+        if (view3D.environment && view3D.environment.lighting) {
+          view3D.environment.lighting.directShadowsEnabled = true;
+        }
+        if (!perfProfile.isLowPower) {
+          view3D.qualityProfile = "high";
+        }
+        if (!daylightWidget) {
+          daylightWidget = new Daylight({
+            view: view3D,
+            container: daylightContainer
+          });
+        }
       }
     });
 
