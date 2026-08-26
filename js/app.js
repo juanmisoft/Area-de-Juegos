@@ -2,7 +2,6 @@
 
 require([
   "esri/config",
-  "esri/identity/IdentityManager",
   "esri/Map",
   "esri/views/MapView",
   "esri/views/SceneView",
@@ -28,7 +27,6 @@ require([
   "esri/views/3d/environment/SunLighting"
 ], function(
   esriConfig,
-  IdentityManager,
   Map,
   MapView,
   SceneView,
@@ -54,11 +52,10 @@ require([
   SunLighting
 ) {
 
-  // Portal Configuration & Token Authentication
-  const PORTAL_URL = "https://sit.rivasciudad.es/portal";
+  // Feature services (consulta pública)
   const SERVER_URL = "https://sit.rivasciudad.es/server/rest/services/AREA_JUEGO_VISUALIZACION/FeatureServer";
   const BUILDINGS_3D_URL = "https://basemaps3d.arcgis.com/arcgis/rest/services/OpenStreetMap3D_Buildings_v1/SceneServer";
-  const ARBOLADO_V3_URL = "https://sit.rivasciudad.es/server/rest/services/Visualizacion_arbolado_Rivamadrid_V3/FeatureServer/11"; // Item: ce35426da80045328ece3d2b87fbc948
+  const ARBOLADO_V3_URL = "https://sit.rivasciudad.es/server/rest/services/ARBOLADO_VISOR_AREAS/FeatureServer/0"; // Item: 80098958485d465e9e61623d49e5edf3
 
   const perfProfile = (function detectPerformanceProfile() {
     const ua = navigator.userAgent || "";
@@ -80,7 +77,6 @@ require([
     };
   })();
 
-  let portalToken = null;
   let map2D, map3D;
   let view2D = null, view3D = null, currentView = null;
   let is3DMode = false;
@@ -231,16 +227,8 @@ require([
   // Initialize App Authentication and Maps
   async function initApp() {
     try {
-      // 1. Obtain Token from SIT Portal
-      await fetchPortalToken();
-
-      // 2. Build 2D and 3D Maps & Views
       setupMapsAndViews();
-
-      // 3. Setup UI Controls & Listeners
       setupUIInteractions();
-
-      // 4. Populate Game Types List in Sidebar
       renderGameTypeListUI();
 
     } catch (err) {
@@ -252,36 +240,6 @@ require([
           <p>${err.message || "Compruebe su conexión a la red municipal."}</p>
         </div>
       `;
-    }
-  }
-
-  // Token only needed for private 3D arbolado. Public layers must keep working without it.
-  async function fetchPortalToken() {
-    try {
-      const tokenUrl = `${PORTAL_URL}/sharing/rest/generateToken`;
-      const formData = new URLSearchParams();
-      formData.append("username", "jmrojas");
-      formData.append("password", "Password.361790");
-      formData.append("referer", window.location.origin);
-      formData.append("f", "json");
-
-      const response = await fetch(tokenUrl, {
-        method: "POST",
-        body: formData
-      });
-
-      const data = await response.json();
-      if (data && data.token) {
-        portalToken = data.token;
-        IdentityManager.registerToken({
-          server: "https://sit.rivasciudad.es/server/rest/services/Visualizacion_arbolado_Rivamadrid_V3",
-          token: portalToken
-        });
-      } else {
-        console.warn("No se pudo obtener el token del arbolado 3D (capa privada).");
-      }
-    } catch (err) {
-      console.warn("Arbolado 3D no disponible sin autenticación:", err);
     }
   }
 
@@ -653,10 +611,10 @@ require([
   }
 
   function ensureArboladoLayer() {
-    if (arboladoLayer3D || !portalToken) return;
+    if (arboladoLayer3D) return;
     try {
       arboladoLayer3D = new FeatureLayer({
-        url: `${ARBOLADO_V3_URL}?token=${portalToken}`,
+        url: ARBOLADO_V3_URL,
         title: "Todos los Árboles (Arbolado 3D)",
         outFields: ["ALTURA"],
         labelsVisible: false,
