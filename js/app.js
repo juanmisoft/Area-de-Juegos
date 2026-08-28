@@ -724,7 +724,7 @@ require([
 
   // Switch between 2D and 3D views using clean container swap
   function switchTo3DMode() {
-    if (is3DMode) return;
+    if (perfProfile.isMobile || is3DMode) return;
     is3DMode = true;
 
     document.getElementById("btn3D").classList.add("active");
@@ -1279,6 +1279,10 @@ require([
 
   // Setup UI Controls & Event Listeners
   function setupUIInteractions() {
+    if (perfProfile.isMobile) {
+      document.body.classList.add("mobile-2d-only");
+    }
+
     // 2D / 3D Mode Toggle Buttons
     document.getElementById("btn2D").addEventListener("click", () => {
       switchTo2DMode();
