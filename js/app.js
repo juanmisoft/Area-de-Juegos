@@ -56,6 +56,9 @@ require([
   const SERVER_URL = "https://sit.rivasciudad.es/server/rest/services/AREA_JUEGO_VISUALIZACION/FeatureServer";
   const BUILDINGS_3D_URL = "https://basemaps3d.arcgis.com/arcgis/rest/services/OpenStreetMap3D_Buildings_v1/SceneServer";
   const ARBOLADO_V3_URL = "https://sit.rivasciudad.es/server/rest/services/ARBOLADO_VISOR_AREAS/FeatureServer/0"; // Item: 80098958485d465e9e61623d49e5edf3
+  const TERMINO_MUNICIPAL_URL = "https://sit.rivasciudad.es/server/rest/services/Termino_municipal_actual/FeatureServer/0"; // Item: 6586b7e8e95c446698bfa8c65d7ed97c
+  const VIEW_CENTER = [-3.518, 40.353];
+  const VIEW_ZOOM = 13;
 
   const perfProfile = (function detectPerformanceProfile() {
     const ua = navigator.userAgent || "";
@@ -73,7 +76,8 @@ require([
       treeMinScale: isLowPower ? 3500 : 7000,
       osmBuildings: !isMobile,
       atmosphere: !isLowPower,
-      iconSize: isLowPower ? 22 : 28
+      iconSize: isLowPower ? 22 : 28,
+      iconMinScale: isLowPower ? 14000 : 16000
     };
   })();
 
@@ -87,7 +91,7 @@ require([
   
   // Layer definitions mapping with 2D icons and 3D perspective icons
   const GAME_LAYERS_CONFIG = [
-    { id: 9, key: "areas", name: "Áreas de juego (Zonas)", icon2D: "Iconos 2D/patio-de-juegos.png", isPolygon: true },
+    { id: 9, key: "areas", name: "Áreas de juego (Zonas)", icon2D: "Iconos 2D/patio-de-juegos.png", isPolygon: true, alwaysVisible: true },
     { id: 0, key: "trepar", name: "Juego de trepar", icon2D: "Iconos 2D/trepar.png", color: "#A16207", primitive: "sphere" },
     { id: 1, key: "tirolina", name: "Tirolina", icon2D: "Iconos 2D/tirolina.png", color: "#0891B2", primitive: "cylinder" },
     { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder", isAdultEquipment: true },
@@ -138,17 +142,17 @@ require([
 
   // Playground surface textures by TIPOSUELO (domain codes + label variants in the inventory)
   const SOIL_STYLE_MAP = [
-    { values: ["Arena"], file: "arena.png", color: [212, 184, 130], label: "Arena" },
-    { values: ["Arena rio", "Arena río"], file: "arena-rio.png", color: [186, 158, 108], label: "Arena de río" },
-    { values: ["Terreno natural"], file: "terreno-natural.png", color: [106, 148, 72], label: "Terreno natural" },
-    { values: ["Hormigon", "Hormigón"], file: "hormigon.png", color: [168, 168, 166], label: "Hormigón" },
-    { values: ["Caucho continuo"], file: "caucho.png", color: [176, 58, 46], label: "Caucho continuo" },
-    { values: ["Caucho arena rio", "Caucho y arena de río", "Caucho y arena de rio"], file: "caucho-arena.png", color: [176, 118, 78], label: "Caucho y arena" },
-    { values: ["Loseta caucho"], file: "loseta-caucho.png", color: [92, 68, 66], label: "Loseta de caucho" },
-    { values: ["Loseta caucho y C continuo", "Loseta caucho y C. continuo"], file: "loseta-mixto.png", color: [128, 78, 70], label: "Loseta y caucho continuo" },
-    { values: ["Corcho"], file: "corcho.png", color: [176, 132, 76], label: "Corcho" },
-    { values: ["-"], file: "suelo-default.png", color: [88, 140, 92], label: "Sin tipo de suelo" },
-    { values: ["PISCINA"], file: "piscina.png", color: [43, 164, 217], label: "Piscina" }
+    { values: ["Arena"], file: "arena.png", color: [212, 184, 130], label: "Arena", pattern: "horizontal" },
+    { values: ["Arena rio", "Arena río"], file: "arena-rio.png", color: [186, 158, 108], label: "Arena de río", pattern: "backward-diagonal" },
+    { values: ["Terreno natural"], file: "terreno-natural.png", color: [106, 148, 72], label: "Terreno natural", pattern: "forward-diagonal" },
+    { values: ["Hormigon", "Hormigón"], file: "hormigon.png", color: [168, 168, 166], label: "Hormigón", pattern: "cross" },
+    { values: ["Caucho continuo"], file: "caucho.png", color: [176, 58, 46], label: "Caucho continuo", pattern: "diagonal-cross" },
+    { values: ["Caucho arena rio", "Caucho y arena de río", "Caucho y arena de rio"], file: "caucho-arena.png", color: [176, 118, 78], label: "Caucho y arena", pattern: "diagonal-cross" },
+    { values: ["Loseta caucho"], file: "loseta-caucho.png", color: [92, 68, 66], label: "Loseta de caucho", pattern: "cross" },
+    { values: ["Loseta caucho y C continuo", "Loseta caucho y C. continuo"], file: "loseta-mixto.png", color: [128, 78, 70], label: "Loseta y caucho continuo", pattern: "diagonal-cross" },
+    { values: ["Corcho"], file: "corcho.png", color: [176, 132, 76], label: "Corcho", pattern: "horizontal" },
+    { values: ["-"], file: "suelo-default.png", color: [88, 140, 92], label: "Sin tipo de suelo", pattern: "solid" },
+    { values: ["PISCINA"], file: "piscina.png", color: [43, 164, 217], label: "Piscina", pattern: "vertical" }
   ];
 
   const AREA_SURFACE_EXPRESSION = `
@@ -170,16 +174,13 @@ require([
   }
 
   function createSoilPolygon3DFill(color) {
-    const r = Math.min(255, Math.round(color[0] * 0.88 + 36));
-    const g = Math.min(255, Math.round(color[1] * 0.88 + 32));
-    const b = Math.min(255, Math.round(color[2] * 0.88 + 24));
     return {
       type: "polygon-3d",
       symbolLayers: [
         {
           type: "fill",
-          material: { color: [r, g, b, 0.5] },
-          outline: { color: [32, 32, 32, 0.95], size: 1.45 }
+          material: { color: [color[0], color[1], color[2], 0.48] },
+          outline: { color: [36, 36, 36, 0.8], size: 1.15 }
         }
       ]
     };
@@ -209,19 +210,69 @@ require([
     });
   }
 
+  function getAreaSoilLabelingInfo(for3D) {
+    const expression = `
+      var uso = Upper(DefaultValue($feature.USO, ''));
+      if (uso == 'PISCINA') return 'Piscina';
+      var s = DefaultValue($feature.TIPOSUELO, '');
+      if (s == 'Arena rio') return 'Arena de río';
+      if (s == 'Arena') return 'Arena';
+      if (s == 'Terreno natural') return 'Terreno natural';
+      if (s == 'Hormigon') return 'Hormigón';
+      if (s == 'Caucho continuo') return 'Caucho continuo';
+      if (s == 'Caucho arena rio') return 'Caucho y arena';
+      if (s == 'Loseta caucho') return 'Loseta de caucho';
+      if (s == 'Loseta caucho y C continuo' || s == 'Loseta caucho y C. continuo') return 'Loseta y caucho continuo';
+      if (s == 'Corcho') return 'Corcho';
+      if (s == '-' || s == '') return '';
+      return s;
+    `;
+    if (for3D) {
+      return [{
+        labelExpressionInfo: { expression },
+        deconflictionStrategy: "none",
+        minScale: 8000,
+        symbol: {
+          type: "label-3d",
+          symbolLayers: [{
+            type: "text",
+            material: { color: [40, 40, 40] },
+            halo: { color: [255, 255, 255, 0.92], size: 0.8 },
+            size: 6,
+            font: { family: "Arial", weight: "bold" }
+          }]
+        }
+      }];
+    }
+    return [{
+      labelExpressionInfo: { expression },
+      labelPlacement: "always-horizontal",
+      deconflictionStrategy: "none",
+      minScale: 8000,
+      symbol: {
+        type: "text",
+        color: [36, 36, 36, 255],
+        haloColor: [255, 255, 255, 235],
+        haloSize: 1.4,
+        font: { family: "Arial", size: 8, weight: "bold" }
+      }
+    }];
+  }
+
   // Active feature layers instances with schema info
   const activeLayers2D = [];
   const activeLayers3D = [];
   
   // Graphics layer for Near Me pin and buffer radius
   let nearMeGraphicsLayer = new GraphicsLayer({ title: "Búsqueda Cerca de mí" });
+  let nearMeSelectLayer2D = new GraphicsLayer({ title: "Selección Cerca de mí", listMode: "hide" });
+  let nearMeSelectLayer3D = new GraphicsLayer({ title: "Selección Cerca de mí", listMode: "hide" });
   let userLocationPoint = null;
 
   // Filter States
   let activeSelectedGameId = null; // null = all
   let activeAgeFilter = "";
-  let activeAdaptedFilter = "";
-  let activeInclusiveFilter = "";
+  let activeAccessibleFilter = "";
   let activeBasemap = "topo-vector";
 
   // Initialize App Authentication and Maps
@@ -314,8 +365,12 @@ require([
               const attrs = graphic ? (graphic.attributes || {}) : {};
               const adaptado = attrs.ADAPTADO || attrs.Adaptado || "";
               const inclusivo = attrs.INCLUSIVO || attrs.Inclusivo || "";
+              const accessible = popupHasValue(adaptado) ? adaptado : inclusivo;
               const heading = getPlayPopupTitle(attrs, layerConfig);
               const shownLabels = {};
+              const citizenFields = layerConfig.isPolygon
+                ? POPUP_CITIZEN_FIELDS.filter((fieldName) => fieldName !== "USO")
+                : POPUP_CITIZEN_FIELDS;
 
               let lat = 40.352;
               let lon = -3.528;
@@ -332,7 +387,7 @@ require([
 
               const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
               let rowsHtml = "";
-              POPUP_CITIZEN_FIELDS.forEach((fieldName) => {
+              citizenFields.forEach((fieldName) => {
                 const val = attrs[fieldName];
                 if (!popupHasValue(val)) return;
                 if (popupSameText(val, heading)) return;
@@ -343,17 +398,11 @@ require([
               });
 
               let tagsHtml = "";
-              if (popupHasValue(adaptado) || popupHasValue(inclusivo)) {
-                tagsHtml = `<div class="popup-tags">`;
-                if (popupHasValue(adaptado)) {
-                  const isSi = String(adaptado).toUpperCase() === "SI";
-                  tagsHtml += `<span class="popup-tag ${isSi ? "adapted" : "not-adapted"}"><i class="fa-solid fa-wheelchair"></i> Adaptado: ${escapeHtml(adaptado)}</span>`;
-                }
-                if (popupHasValue(inclusivo)) {
-                  const isSi = String(inclusivo).toUpperCase() === "SI";
-                  tagsHtml += `<span class="popup-tag ${isSi ? "inclusive" : "not-inclusive"}"><i class="fa-solid fa-hands-holding-child"></i> Inclusivo: ${escapeHtml(inclusivo)}</span>`;
-                }
-                tagsHtml += `</div>`;
+              if (popupHasValue(accessible)) {
+                const isSi = String(accessible).toUpperCase() === "SI";
+                tagsHtml = `<div class="popup-tags">
+                  <span class="popup-tag ${isSi ? "adapted" : "not-adapted"}"><i class="fa-solid fa-wheelchair"></i> Adaptado / inclusivo: ${escapeHtml(accessible)}</span>
+                </div>`;
               }
 
               const container = document.createElement("div");
@@ -397,7 +446,7 @@ require([
   // Helper renderer for 3D Perspective Billboard Icons planted on the ground
   function get3DRenderer(config) {
     if (config.isPolygon) {
-      return getAreaPolygonRenderer(false, 36);
+      return getAreaPolygonRenderer(true);
     }
 
     const absIconUrl = new URL(config.icon2D, window.location.href).href;
@@ -501,6 +550,41 @@ require([
       console.warn("3D Buildings load warning:", e);
     }
 
+    try {
+      const terminoRenderer = new SimpleRenderer({
+        symbol: new SimpleFillSymbol({
+          color: [0, 0, 0, 0],
+          outline: {
+            color: [28, 28, 28, 1],
+            width: 1.15,
+            style: "dash"
+          }
+        })
+      });
+
+      const termino2D = new FeatureLayer({
+        url: TERMINO_MUNICIPAL_URL,
+        title: "Término municipal",
+        popupEnabled: false,
+        legendEnabled: false,
+        labelingInfo: null,
+        renderer: terminoRenderer
+      });
+      const termino3D = new FeatureLayer({
+        url: TERMINO_MUNICIPAL_URL,
+        title: "Término municipal",
+        popupEnabled: false,
+        legendEnabled: false,
+        labelingInfo: null,
+        elevationInfo: { mode: "on-the-ground" },
+        renderer: terminoRenderer
+      });
+      map2D.add(termino2D);
+      map3D.add(termino3D);
+    } catch (e) {
+      console.warn("Término municipal:", e);
+    }
+
     // Create 2D & 3D Feature Layers (Ensure polygon layers are added FIRST so they sit at the bottom of the map)
     const sortedConfigs = [...GAME_LAYERS_CONFIG].sort((a, b) => (b.isPolygon ? 1 : 0) - (a.isPolygon ? 1 : 0));
 
@@ -511,8 +595,10 @@ require([
         url: url,
         title: cfg.name,
         outFields: ["*"],
-        labelsVisible: false,
-        labelingInfo: null,
+        popupEnabled: true,
+        minScale: cfg.isPolygon ? 0 : perfProfile.iconMinScale,
+        labelsVisible: !!cfg.isPolygon,
+        labelingInfo: cfg.isPolygon ? getAreaSoilLabelingInfo(false) : null,
         renderer: get2DRenderer(cfg)
       });
 
@@ -520,9 +606,11 @@ require([
         url: url,
         title: cfg.name,
         outFields: ["*"],
-        labelsVisible: false,
-        labelingInfo: null,
-        opacity: cfg.isPolygon ? 0.82 : 1,
+        popupEnabled: true,
+        minScale: cfg.isPolygon ? 0 : perfProfile.iconMinScale,
+        labelsVisible: !!cfg.isPolygon,
+        labelingInfo: cfg.isPolygon ? getAreaSoilLabelingInfo(true) : null,
+        opacity: cfg.isPolygon ? 0.7 : 1,
         elevationInfo: cfg.isPolygon
           ? { mode: "on-the-ground" }
           : { mode: "relative-to-ground", offset: 0.55 },
@@ -539,6 +627,8 @@ require([
           listMode: "hide",
           popupEnabled: true,
           labelsVisible: false,
+          labelingInfo: null,
+          opacity: 0.28,
           elevationInfo: { mode: "on-the-ground" },
           renderer: getAreaPolygonRenderer(true)
         });
@@ -569,13 +659,15 @@ require([
 
     // Add GraphicsLayer for Near Me search on top of feature layers in 2D
     map2D.add(nearMeGraphicsLayer);
+    map2D.add(nearMeSelectLayer2D);
+    map3D.add(nearMeSelectLayer3D);
 
     // Initialize 2D View on container #viewDiv
     view2D = new MapView({
       container: "viewDiv",
       map: map2D,
-      center: [-3.528, 40.352],
-      zoom: 13
+      center: VIEW_CENTER,
+      zoom: VIEW_ZOOM
     });
     try {
       if (view2D.popup) {
@@ -647,11 +739,8 @@ require([
         container: "viewDiv",
         map: map3D,
         qualityProfile: perfProfile.qualityProfile,
-        camera: {
-          position: { longitude: -3.528, latitude: 40.320, z: 7500 },
-          heading: 0,
-          tilt: 20
-        },
+        center: VIEW_CENTER,
+        zoom: VIEW_ZOOM,
         timeZone: "Europe/Madrid",
         environment: {
           lighting: new SunLighting({
@@ -665,6 +754,14 @@ require([
             type: "sunny"
           }
         }
+      });
+      view3D.when(() => {
+        view3D.goTo({
+          center: VIEW_CENTER,
+          zoom: VIEW_ZOOM,
+          heading: 0,
+          tilt: 10
+        }, { animate: false });
       });
       if (view3D.popup) {
         view3D.popup.autoNavigateEnabled = false;
@@ -790,12 +887,12 @@ require([
     container.appendChild(allItem);
 
     container.appendChild(createListSection("Elementos", "fa-solid fa-shapes"));
-    GAME_LAYERS_CONFIG.filter(cfg => !cfg.isPolygon).forEach(cfg => {
+    GAME_LAYERS_CONFIG.filter(cfg => !cfg.isPolygon && !cfg.isAdultEquipment).forEach(cfg => {
       container.appendChild(createGameTypeItem(cfg));
     });
 
-    container.appendChild(createListSection("Zonas", "fa-solid fa-draw-polygon"));
-    GAME_LAYERS_CONFIG.filter(cfg => cfg.isPolygon).forEach(cfg => {
+    container.appendChild(createListSection("Zonas", "fa-solid fa-person-running"));
+    GAME_LAYERS_CONFIG.filter(cfg => cfg.isAdultEquipment).forEach(cfg => {
       container.appendChild(createGameTypeItem(cfg));
     });
   }
@@ -811,6 +908,7 @@ require([
   }
 
   function layerMatchesCurrentSelection(item) {
+    if (item.config.alwaysVisible) return true;
     return activeSelectedGameId === null || item.config.id === activeSelectedGameId;
   }
 
@@ -819,14 +917,12 @@ require([
 
     const availableFields = item.fields || [];
     const hasEdad = availableFields.includes("EDAD") || availableFields.includes("EDAD_G");
-    const hasAdaptado = availableFields.includes("ADAPTADO");
-    const hasInclusivo = availableFields.includes("INCLUSIVO");
+    const hasAccessible = availableFields.includes("ADAPTADO") || availableFields.includes("INCLUSIVO");
     const isAdultEquipment = !!item.config.isAdultEquipment;
     const skipAgeConstraint = activeAgeFilter === "adult" && isAdultEquipment;
 
     if (activeAgeFilter && !hasEdad && !skipAgeConstraint) return null;
-    if (activeAdaptedFilter && !hasAdaptado) return null;
-    if (activeInclusiveFilter && !hasInclusivo) return null;
+    if (activeAccessibleFilter && !hasAccessible) return null;
 
     const whereClauses = [];
 
@@ -835,12 +931,19 @@ require([
       if (ageClause) whereClauses.push(ageClause);
     }
 
-    if (activeAdaptedFilter && hasAdaptado) {
-      whereClauses.push(`ADAPTADO = '${activeAdaptedFilter}'`);
-    }
-
-    if (activeInclusiveFilter && hasInclusivo) {
-      whereClauses.push(`INCLUSIVO = '${activeInclusiveFilter}'`);
+    if (activeAccessibleFilter && hasAccessible) {
+      const accessParts = [];
+      if (availableFields.includes("ADAPTADO")) {
+        accessParts.push(`ADAPTADO = '${activeAccessibleFilter}'`);
+      }
+      if (availableFields.includes("INCLUSIVO")) {
+        accessParts.push(`INCLUSIVO = '${activeAccessibleFilter}'`);
+      }
+      if (accessParts.length === 1) {
+        whereClauses.push(accessParts[0]);
+      } else if (accessParts.length > 1) {
+        whereClauses.push(`(${accessParts.join(" OR ")})`);
+      }
     }
 
     return whereClauses;
@@ -893,6 +996,10 @@ require([
         continue;
       }
 
+      if (item.config.isPolygon) {
+        continue;
+      }
+
       try {
         const count = await item.layer.queryFeatureCount({ where: item.layer.definitionExpression || "1=1" });
         grandTotal += count;
@@ -913,8 +1020,61 @@ require([
     return nearPane && nearPane.classList.contains("active");
   }
 
+  function getNearMeHighlightSymbol() {
+    return new SimpleMarkerSymbol({
+      style: "circle",
+      color: [0, 122, 61, 0.18],
+      size: 36,
+      outline: { color: [0, 122, 61, 1], width: 3 }
+    });
+  }
+
+  function clearNearMeSelection() {
+    nearMeSelectLayer2D.removeAll();
+    nearMeSelectLayer3D.removeAll();
+    document.querySelectorAll(".near-item-card.selected").forEach((el) => el.classList.remove("selected"));
+  }
+
+  function highlightNearMePoint(point) {
+    const symbol = getNearMeHighlightSymbol();
+    nearMeSelectLayer2D.removeAll();
+    nearMeSelectLayer3D.removeAll();
+    nearMeSelectLayer2D.add(new Graphic({ geometry: point, symbol }));
+    nearMeSelectLayer3D.add(new Graphic({ geometry: point, symbol }));
+  }
+
+  async function focusNearMeFeature(feature, point, cardEl) {
+    if (!currentView || !point) return;
+
+    document.querySelectorAll(".near-item-card.selected").forEach((el) => el.classList.remove("selected"));
+    if (cardEl) cardEl.classList.add("selected");
+    highlightNearMePoint(point);
+
+    const farZoom = currentView.zoom == null || currentView.zoom < 16;
+    const goToParams = farZoom ? { target: point, zoom: 17 } : { target: point };
+
+    if (is3DMode && view3D && view3D.camera) {
+      goToParams.tilt = view3D.camera.tilt;
+      goToParams.heading = view3D.camera.heading;
+    }
+
+    try {
+      await currentView.goTo(goToParams, { duration: 700 });
+    } catch (err) {
+      console.warn("Cerca de mí, desplazamiento:", err);
+    }
+
+    if (currentView.popup) {
+      currentView.popup.open({
+        features: [feature],
+        location: point
+      });
+    }
+  }
+
   function clearNearMeSearch() {
     nearMeGraphicsLayer.removeAll();
+    clearNearMeSelection();
     userLocationPoint = null;
     const btnClear = document.getElementById("btnClearNearMe");
     if (btnClear) btnClear.style.display = "none";
@@ -980,7 +1140,7 @@ require([
     const nearbyFeatures = [];
 
     for (const item of activeLayers2D) {
-      if (!item.layer.visible) continue;
+      if (!item.layer.visible || item.config.isPolygon) continue;
 
       const query = item.layer.createQuery();
       query.geometry = geometry;
@@ -1060,7 +1220,7 @@ require([
       group.items.forEach(item => {
         const attrs = item.feature.attributes || {};
         const nombre = attrs.ELEMENTO || attrs.Elemento || attrs.TIPO || item.layerConfig.name;
-        const adaptado = attrs.ADAPTADO || attrs.Adaptado || 'NO';
+        const adaptado = attrs.ADAPTADO || attrs.Adaptado || attrs.INCLUSIVO || attrs.Inclusivo || "NO";
         const edad = attrs.EDAD || attrs.EDAD_G || 'Todas';
         const lat = item.point.latitude || 40.352;
         const lon = item.point.longitude || -3.528;
@@ -1076,7 +1236,7 @@ require([
           <div class="near-item-details">
             <span class="near-detail-chip"><i class="fa-solid fa-child"></i> Edad: ${edad}</span>
             <span class="near-detail-chip ${adaptado === 'SI' ? 'is-adapted' : ''}">
-              <i class="fa-solid fa-wheelchair"></i> Adaptado: ${adaptado}
+              <i class="fa-solid fa-wheelchair"></i> Adaptado / inclusivo: ${adaptado}
             </span>
           </div>
           <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route">
@@ -1084,15 +1244,9 @@ require([
           </a>
         `;
 
-        // Selecting card opens popup on current map view without altering zoom
         card.addEventListener("click", (e) => {
           if (e.target.closest(".btn-route")) return;
-          if (currentView) {
-            currentView.popup.open({
-              features: [item.feature],
-              location: item.point
-            });
-          }
+          focusNearMeFeature(item.feature, item.point, card);
         });
 
         groupSection.appendChild(card);
@@ -1213,21 +1367,11 @@ require([
     });
 
     // Chips for Adapted
-    document.querySelectorAll("#adaptedChips .chip-btn").forEach(btn => {
+    document.querySelectorAll("#accessibleChips .chip-btn").forEach(btn => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll("#adaptedChips .chip-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll("#accessibleChips .chip-btn").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
-        activeAdaptedFilter = btn.dataset.value;
-        applyCombinedFilters();
-      });
-    });
-
-    // Chips for Inclusive
-    document.querySelectorAll("#inclusiveChips .chip-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("#inclusiveChips .chip-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        activeInclusiveFilter = btn.dataset.value;
+        activeAccessibleFilter = btn.dataset.value;
         applyCombinedFilters();
       });
     });
@@ -1236,13 +1380,11 @@ require([
     document.getElementById("resetFiltersBtn").addEventListener("click", () => {
       activeSelectedGameId = null;
       activeAgeFilter = "";
-      activeAdaptedFilter = "";
-      activeInclusiveFilter = "";
+      activeAccessibleFilter = "";
 
       document.querySelectorAll(".chip-btn").forEach(b => b.classList.remove("active"));
       document.querySelectorAll("#ageChips .chip-btn")[0].classList.add("active");
-      document.querySelectorAll("#adaptedChips .chip-btn")[0].classList.add("active");
-      document.querySelectorAll("#inclusiveChips .chip-btn")[0].classList.add("active");
+      document.querySelectorAll("#accessibleChips .chip-btn")[0].classList.add("active");
 
       selectGameType(null, document.querySelector('.game-type-item[data-id="all"]'));
     });
@@ -1296,14 +1438,15 @@ require([
       if (currentView) {
         if (is3DMode && view3D) {
           view3D.goTo({
-            position: { longitude: -3.528, latitude: 40.320, z: 7500 },
+            center: VIEW_CENTER,
+            zoom: VIEW_ZOOM,
             heading: 0,
-            tilt: 20
+            tilt: 10
           });
         } else if (view2D) {
           view2D.goTo({
-            center: [-3.528, 40.352],
-            zoom: 13
+            center: VIEW_CENTER,
+            zoom: VIEW_ZOOM
           });
         }
       }

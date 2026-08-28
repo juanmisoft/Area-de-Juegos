@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
   
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="css/styles.css?v=20260825-popup">
+  <link rel="stylesheet" href="css/styles.css?v=20260828-cercademi">
 </head>
 <body>
 
@@ -145,24 +145,13 @@
             </div>
           </div>
 
-          <!-- Adapted Filter -->
+          <!-- Unified adapted / inclusive filter -->
           <div class="filter-group">
             <label class="filter-label">
-              <i class="fa-solid fa-wheelchair"></i> Elemento Adaptado
+              <i class="fa-solid fa-wheelchair"></i> Adaptado / inclusivo
             </label>
-            <div id="adaptedChips" class="chip-group">
-              <button class="chip-btn active" data-value="">Todos</button>
-              <button class="chip-btn" data-value="SI">Sí <i class="fa-solid fa-check"></i></button>
-              <button class="chip-btn" data-value="NO">No</button>
-            </div>
-          </div>
-
-          <!-- Inclusive Filter -->
-          <div class="filter-group">
-            <label class="filter-label">
-              <i class="fa-solid fa-hands-holding-child"></i> Elemento Inclusivo
-            </label>
-            <div id="inclusiveChips" class="chip-group">
+            <p class="filter-hint">En este inventario ambos campos coinciden; el filtro los trata como uno.</p>
+            <div id="accessibleChips" class="chip-group">
               <button class="chip-btn active" data-value="">Todos</button>
               <button class="chip-btn" data-value="SI">Sí <i class="fa-solid fa-check"></i></button>
               <button class="chip-btn" data-value="NO">No</button>
@@ -314,6 +303,6 @@
   <script src="https://js.arcgis.com/4.30/"></script>
   
   <!-- Main Application Logic -->
-  <script src="js/app.js?v=20260826-arbolado-publico"></script>
+  <script src="js/app.js?v=20260828-centro3d"></script>
 </body>
 </html>
