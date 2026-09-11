@@ -848,11 +848,12 @@ require([
       applyCombinedFilters();
     });
 
-    // Map click handler for Near Me (only when "Cerca de mí" tab is active)
-    view2D.on("click", (evt) => {
+    view2D.on("click", async (evt) => {
       if (isNearMeTabActive() && evt.mapPoint) {
         setUserNearMePoint(evt.mapPoint);
+        return;
       }
+      await zoomToZoneOnOverviewClick(view2D, evt, activeLayers2D);
     });
   }
 
@@ -935,6 +936,7 @@ require([
           setUserNearMePoint(evt.mapPoint);
           return;
         }
+        await zoomToZoneOnOverviewClick(view3D, evt, activeLayers3D);
         try {
           const hit = await view3D.hitTest(evt);
           const clickedPoint = hit.results.some((result) => {
@@ -1215,6 +1217,75 @@ require([
     } else {
       const areasCfg = GAME_LAYERS_CONFIG.find(cfg => cfg.id === DEFAULT_SELECTED_GAME_ID);
       updateHeaderLegend(areasCfg.name, areasCfg.icon2D, 0, "áreas");
+    }
+  }
+
+  function isOverviewMapScale(view) {
+    return !!(view && view.scale >= perfProfile.areaIconMaxScale);
+  }
+
+  function getZoneClickLayers(layerSet) {
+    const layers = [];
+    (layerSet || []).forEach((item) => {
+      if (item.overview && item.overview.visible) layers.push(item.overview);
+      if (item.config && item.config.isPolygon && item.layer && item.layer.visible) {
+        layers.push(item.layer);
+      }
+      if (item.catcher && item.catcher.visible) layers.push(item.catcher);
+      if (item.config && item.config.isAdultEquipment && item.layer && item.layer.visible) {
+        layers.push(item.layer);
+      }
+    });
+    return layers;
+  }
+
+  function getGeometryFocusPoint(geom) {
+    if (!geom) return null;
+    if (geom.type === "point") return geom;
+    if (geom.centroid) return geom.centroid;
+    if (geom.extent && geom.extent.center) return geom.extent.center;
+    return null;
+  }
+
+  async function zoomViewToZoneGraphic(view, graphic) {
+    const geom = graphic && graphic.geometry;
+    if (!view || !geom) return;
+
+    const detailScale = Math.round(perfProfile.areaIconMaxScale * 0.45);
+    const goToParams = { target: geom };
+    if (geom.type === "point") goToParams.scale = detailScale;
+
+    if (is3DMode && view.camera) {
+      goToParams.tilt = view.camera.tilt;
+      goToParams.heading = view.camera.heading;
+    }
+
+    await view.goTo(goToParams, { duration: 800 });
+
+    if (view.scale > perfProfile.areaIconMaxScale) {
+      const center = getGeometryFocusPoint(geom);
+      if (!center) return;
+      const followUp = { target: center, scale: detailScale };
+      if (is3DMode && view.camera) {
+        followUp.tilt = view.camera.tilt;
+        followUp.heading = view.camera.heading;
+      }
+      await view.goTo(followUp, { duration: 400 });
+    }
+  }
+
+  async function zoomToZoneOnOverviewClick(view, evt, layerSet) {
+    if (!view || !evt || !isOverviewMapScale(view)) return;
+    const layers = getZoneClickLayers(layerSet);
+    if (!layers.length) return;
+
+    try {
+      const hit = await view.hitTest(evt, { include: layers });
+      const graphic = hit && hit.results && hit.results[0] && hit.results[0].graphic;
+      if (!graphic || !graphic.geometry) return;
+      await zoomViewToZoneGraphic(view, graphic);
+    } catch (err) {
+      console.warn("Zoom a zona:", err);
     }
   }
 
