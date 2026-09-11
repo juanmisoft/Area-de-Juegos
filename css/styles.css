@@ -35,6 +35,7 @@ body {
   color: var(--text-main);
   background-color: var(--bg-light);
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   overflow: hidden;
   display: flex;
@@ -43,7 +44,7 @@ body {
 
 /* Header */
 .app-header {
-  height: var(--header-height);
+  min-height: var(--header-height);
   background: var(--primary);
   background: linear-gradient(135deg, #007A3D 0%, #005028 100%);
   color: #FFFFFF;
@@ -51,15 +52,106 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
+  padding-top: env(safe-area-inset-top);
   box-shadow: var(--shadow-md);
   z-index: 100;
   position: relative;
+  gap: 12px;
 }
 
 .brand-container {
   display: flex;
   align-items: center;
   gap: 1rem;
+  min-width: 0;
+}
+
+.header-help-btn {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.report-overlay.is-open {
+  display: flex;
+}
+
+.report-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-card-head h2 {
+  font-size: 1.25rem;
+  color: var(--primary);
+  line-height: 1.25;
+}
+
+.report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.report-form input,
+.report-form textarea {
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 400;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+}
+
+.report-form textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.report-privacy {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.report-status {
+  font-size: 0.88rem;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.report-status.is-ok {
+  background: #DCFCE7;
+  color: #166534;
+}
+
+.report-secondary-btn {
+  border: 1px solid var(--border-color);
+  background: #FFFFFF;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 11px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
 }
 
 .brand-logo {
@@ -92,6 +184,56 @@ body {
 }
 
 /* Header Controls & View Toggle */
+.header-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  margin: 0 1.25rem;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  max-width: 420px;
+}
+
+.header-legend-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.header-legend-fa {
+  font-size: 1.25rem;
+  color: #FFFFFF;
+  width: 36px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.header-legend-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header-legend-text span:first-child {
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-legend-count {
+  font-size: 0.78rem;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -160,14 +302,14 @@ body.mobile-2d-only #tab-shade {
 
 .basemap-menu {
   position: absolute;
-  top: 110%;
-  right: 0;
+  top: 20px;
+  right: 74px;
   background: #FFFFFF;
   color: var(--text-main);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border-color);
-  width: 220px;
+  width: min(220px, calc(100vw - 90px));
   display: none;
   flex-direction: column;
   padding: 6px;
@@ -373,6 +515,35 @@ body.mobile-2d-only #tab-shade {
 .game-list-section i {
   color: var(--primary);
   font-size: 0.8rem;
+}
+
+.game-accordion-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.game-accordion-toggle .accordion-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.game-accordion.open .accordion-chevron {
+  transform: rotate(180deg);
+}
+
+.game-accordion-body {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.game-accordion.open .game-accordion-body {
+  display: flex;
 }
 
 .type-info {
@@ -651,6 +822,36 @@ body.mobile-2d-only #tab-shade {
   font-weight: 700;
   font-size: 0.85rem;
   color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.near-zone-chevron {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.near-zone-card.open .near-zone-chevron {
+  transform: rotate(180deg);
+}
+
+.near-zone-elements {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.near-zone-card.open .near-zone-elements {
+  display: flex;
+}
+
+.near-nested-card {
+  background: #F8FAFC;
+  cursor: pointer;
 }
 
 .near-item-dist {
@@ -990,6 +1191,139 @@ input:checked + .slider:before {
   color: #991B1B;
 }
 
+/* Welcome page */
+.welcome-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(18, 30, 23, 0.55);
+  backdrop-filter: blur(8px);
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+html.show-welcome .welcome-overlay:not(.report-overlay) {
+  display: flex;
+}
+
+.welcome-card {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.welcome-logo {
+  height: 48px;
+  width: auto;
+  align-self: flex-start;
+  background: #FFFFFF;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.welcome-card h2 {
+  font-size: 1.35rem;
+  line-height: 1.25;
+  color: var(--primary);
+}
+
+.welcome-lead,
+.filter-hint,
+.near-me-hint,
+.loading-copy {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.near-me-hint {
+  text-align: center;
+  margin-top: 6px;
+}
+
+.welcome-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.welcome-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--text-main);
+}
+
+.welcome-features i {
+  color: var(--primary);
+  width: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.welcome-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.welcome-check input {
+  margin-top: 3px;
+  accent-color: var(--primary);
+}
+
+.welcome-start-btn {
+  border: none;
+  background: var(--primary);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.near-empty-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 1.5rem 0.75rem;
+  line-height: 1.45;
+}
+
+.near-empty-hint i {
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 8px;
+  color: #CBD5E1;
+}
+
+.near-me-sheet {
+  display: none;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
 /* Loading Overlay */
 .loading-overlay {
   position: absolute;
@@ -1020,10 +1354,73 @@ input:checked + .slider:before {
 
 /* Responsive Media Queries */
 @media (max-width: 900px) {
+  .app-header {
+    min-height: 56px;
+    height: auto;
+    padding: 8px 10px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .brand-container {
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .brand-logo {
+    height: 34px;
+    padding: 3px 6px;
+  }
+
+  .brand-title {
+    font-size: 0.92rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .brand-subtitle,
+  .header-actions {
+    display: none;
+  }
+
+  .header-legend {
+    order: 3;
+    flex: 1 1 100%;
+    max-width: none;
+    margin: 0;
+    padding: 6px 10px;
+  }
+
+  .header-legend-icon,
+  .header-legend-fa {
+    width: 24px;
+    height: 24px;
+    font-size: 1rem;
+  }
+
+  .header-legend-text span:first-child {
+    font-size: 0.82rem;
+  }
+
+  .mobile-toggle-menu {
+    display: block;
+  }
+
+  .mode-toggle-group,
+  #tabShadeBtn,
+  #tab-shade {
+    display: none !important;
+  }
+
   .sidebar {
     position: absolute;
-    top: 0; left: 0; bottom: 0;
-    width: 320px;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(360px, calc(100vw - 44px));
     transform: translateX(-100%);
     box-shadow: var(--shadow-lg);
   }
@@ -1032,12 +1429,182 @@ input:checked + .slider:before {
     transform: translateX(0);
   }
 
-  .mobile-toggle-menu {
+  .sidebar-backdrop.visible {
     display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(18, 30, 23, 0.4);
+    z-index: 80;
   }
 
-  .weather-widget-container {
-    right: 20px;
-    bottom: 220px;
+  .sidebar-tabs {
+    overflow-x: auto;
+  }
+
+  .tab-btn {
+    min-width: 88px;
+    font-size: 0.75rem;
+    padding: 10px 6px;
+  }
+
+  .sidebar-content {
+    padding: 1rem;
+  }
+
+  .section-header {
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .section-title {
+    font-size: 0.92rem;
+    line-height: 1.3;
+  }
+
+  .count-badge {
+    white-space: nowrap;
+  }
+
+  .game-type-item {
+    padding: 10px 12px;
+  }
+
+  .game-type-item:hover {
+    transform: none;
+  }
+
+  .type-name,
+  .chip-btn,
+  .filter-hint,
+  .welcome-lead,
+  .welcome-features li {
+    overflow-wrap: anywhere;
+  }
+
+  .chip-btn {
+    padding: 8px 12px;
+  }
+
+  .map-floating-controls {
+    top: 12px;
+    right: 12px;
+  }
+
+  .basemap-menu {
+    top: 12px;
+    right: 62px;
+  }
+
+  .esri-popup--is-docked-top-center,
+  .esri-popup--is-docked-bottom-center {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+  }
+
+  .esri-popup--is-docked .esri-popup__main-container {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .popup-detail-row {
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+
+  .popup-detail-row span {
+    text-align: left;
+  }
+
+  .daylight-widget-container {
+    max-width: calc(100vw - 24px);
+    right: 12px;
+    left: 12px;
+    bottom: 16px;
+  }
+
+  .near-me-sheet {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 88;
+    max-height: min(58vh, 480px);
+    background: #FFFFFF;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.18);
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .near-me-sheet.open {
+    display: flex;
+  }
+
+  .near-me-sheet.minimized {
+    max-height: none;
+  }
+
+  .near-me-sheet.minimized .near-me-sheet-list {
+    display: none;
+  }
+
+  .near-me-sheet-handle {
+    align-self: center;
+    width: 44px;
+    height: 18px;
+    margin: 6px 0 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .near-me-sheet-handle::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    width: 44px;
+    height: 5px;
+    margin-left: -22px;
+    border-radius: 99px;
+    background: #CBD5E1;
+  }
+
+  .near-me-sheet-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 14px 10px;
+  }
+
+  .near-me-sheet-header h3 {
+    font-size: 0.95rem;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .near-me-sheet-close {
+    border: none;
+    background: #F1F5F9;
+    color: var(--text-main);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .near-me-sheet-list {
+    max-height: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 12px 12px;
   }
 }

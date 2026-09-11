@@ -2,11 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventario de Juegos Infantiles | Ayuntamiento de Rivas Vaciamadrid</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Áreas de juego | Ayuntamiento de Rivas Vaciamadrid</title>
   
   <!-- Favicon & Meta -->
-  <meta name="description" content="Consulta pública del inventario de áreas de juegos infantiles, elementos biosaludables, calistenia y accesibilidad en Rivas Vaciamadrid.">
+  <meta name="description" content="Consulta pública del inventario de áreas de juego, elementos biosaludables, calistenia y accesibilidad en Rivas Vaciamadrid.">
   <meta name="theme-color" content="#007A3D">
 
   <!-- Google Fonts -->
@@ -21,9 +21,84 @@
   <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
   
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="css/styles.css?v=20260828-no3dmobile">
+  <link rel="stylesheet" href="css/styles.css?v=20260911-gmail">
+  <script>
+    try {
+      if (!localStorage.getItem("rivasJuegosHideWelcome")) {
+        document.documentElement.classList.add("show-welcome");
+      }
+    } catch (e) {}
+  </script>
 </head>
 <body>
+
+  <div id="welcomeOverlay" class="welcome-overlay" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+    <div class="welcome-card">
+      <img src="Logo_OITR.png" alt="Rivas Vaciamadrid" class="welcome-logo">
+      <h2 id="welcomeTitle">Bienvenido a Áreas de juego</h2>
+      <p class="welcome-lead">Mapa del Ayuntamiento para localizar parques infantiles y zonas de ejercicio al aire libre.</p>
+      <ul class="welcome-features">
+        <li>
+          <i class="fa-solid fa-bars"></i>
+          <span><strong>Menú:</strong> en el móvil, las tres rayas de arriba a la izquierda. Ahí están Juegos, Filtros y Cerca de mí.</span>
+        </li>
+        <li>
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span><strong>El mapa:</strong> de lejos verá cada área como un dibujo. Al acercarse, el parque y sus juegos. Pulse un símbolo para más datos.</span>
+        </li>
+        <li>
+          <i class="fa-solid fa-list"></i>
+          <span><strong>Juegos:</strong> elija áreas infantiles, biosaludable, calistenia o ping pong. En Elementos puede ver un solo tipo, por ejemplo columpios.</span>
+        </li>
+        <li>
+          <i class="fa-solid fa-sliders"></i>
+          <span><strong>Filtros:</strong> por edad o para ver solo lo adaptado / inclusivo.</span>
+        </li>
+        <li>
+          <i class="fa-solid fa-location-crosshairs"></i>
+          <span><strong>Cerca de mí:</strong> zonas alrededor de usted. En un área infantil, pulse para ver sus juegos.</span>
+        </li>
+      </ul>
+      <label class="welcome-check">
+        <input type="checkbox" id="welcomeDontShow">
+        <span>No volver a mostrar esta explicación</span>
+      </label>
+      <button type="button" id="welcomeStartBtn" class="welcome-start-btn">
+        Ver el mapa
+      </button>
+    </div>
+  </div>
+
+  <div id="reportOverlay" class="welcome-overlay report-overlay" role="dialog" aria-modal="true" aria-labelledby="reportTitle" hidden>
+    <div class="welcome-card report-card">
+      <div class="report-card-head">
+        <h2 id="reportTitle">Avisar de un problema</h2>
+        <button type="button" id="reportCloseBtn" class="near-me-sheet-close" aria-label="Cerrar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <p class="welcome-lead">Escriba qué ha ocurrido y pulse enviar. El dispositivo le preguntará con qué correo quiere mandarlo (Outlook, Gmail u otro).</p>
+      <form id="reportForm" class="report-form">
+        <label>
+          <span>Su nombre (opcional)</span>
+          <input type="text" id="reportName" name="nombre" maxlength="120" autocomplete="name">
+        </label>
+        <label>
+          <span>Su correo, si desea respuesta (opcional)</span>
+          <input type="email" id="reportEmail" name="correo" maxlength="160" autocomplete="email">
+        </label>
+        <label>
+          <span>Qué ha ocurrido</span>
+          <textarea id="reportMessage" name="mensaje" required maxlength="2000" rows="5" placeholder="Explique el problema con sus palabras. Por ejemplo: no se ve un parque, un botón no responde..."></textarea>
+        </label>
+        <p class="report-privacy">El aviso se envía a oficinainformacionterritorial@rivasciudad.es. Sus datos se usarán solo para atenderlo.</p>
+        <p id="reportStatus" class="report-status" hidden></p>
+        <button type="submit" id="reportSubmitBtn" class="welcome-start-btn">
+          Enviar aviso
+        </button>
+      </form>
+    </div>
+  </div>
 
   <!-- Header Application Bar -->
   <header class="app-header">
@@ -33,8 +108,23 @@
       </button>
       <img src="Logo_OITR.png" alt="Logo Rivas Vaciamadrid" class="brand-logo">
       <div class="brand-titles">
-        <h1 class="brand-title">Juegos Infantiles</h1>
+        <h1 class="brand-title">Áreas de juego</h1>
         <span class="brand-subtitle">Ayuntamiento de Rivas Vaciamadrid</span>
+      </div>
+      <button type="button" id="btnWelcomeHelp" class="header-help-btn" title="Cómo usar el mapa" aria-label="Cómo usar el mapa">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <button type="button" id="btnReportIssue" class="header-help-btn" title="Avisar de un problema" aria-label="Avisar de un problema">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </button>
+    </div>
+
+    <div class="header-legend" id="headerLegend" title="Selección actual">
+      <img id="headerLegendIcon" class="header-legend-icon" src="parque-de-atracciones.png" alt="Área infantil">
+      <i id="headerLegendFa" class="fa-solid fa-border-all header-legend-fa" hidden></i>
+      <div class="header-legend-text">
+        <span id="headerLegendName">Área infantil</span>
+        <span id="headerLegendCount" class="header-legend-count">—</span>
       </div>
     </div>
 
@@ -45,26 +135,6 @@
         <button id="btnBasemapMenu" class="basemap-btn">
           <i class="fa-solid fa-layer-group"></i> <span id="currentBasemapName">Topográfico</span> <i class="fa-solid fa-chevron-down" style="font-size:0.75rem;"></i>
         </button>
-        <div id="basemapMenu" class="basemap-menu">
-          <button class="basemap-option active" data-basemap="topo-vector">
-            <i class="fa-solid fa-map"></i> Topográfico
-          </button>
-          <button class="basemap-option" data-basemap="hybrid">
-            <i class="fa-solid fa-globe"></i> Satélite / Híbrido
-          </button>
-          <button class="basemap-option" data-basemap="streets-vector">
-            <i class="fa-solid fa-city"></i> Callejero
-          </button>
-          <button class="basemap-option" data-basemap="gray-vector">
-            <i class="fa-solid fa-sun"></i> Gris Claro
-          </button>
-          <button class="basemap-option" data-basemap="dark-gray-vector">
-            <i class="fa-solid fa-moon"></i> Gris Oscuro
-          </button>
-          <button class="basemap-option" data-basemap="osm">
-            <i class="fa-solid fa-route"></i> OpenStreetMap
-          </button>
-        </div>
       </div>
 
       <!-- 2D / 3D Mode Toggle Switch -->
@@ -82,6 +152,8 @@
   <!-- Main Container -->
   <div class="app-container">
     
+    <div id="sidebarBackdrop" class="sidebar-backdrop" hidden></div>
+
     <!-- Sidebar Panel -->
     <aside id="sidebar" class="sidebar">
       
@@ -177,8 +249,8 @@
               <i class="fa-solid fa-crosshairs"></i> Usar mi Ubicación GPS
             </button>
             
-            <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin-top: 6px;">
-              O haz clic en cualquier punto del mapa estando en esta pestaña
+            <p class="near-me-hint">
+              O toca cualquier punto del mapa estando en esta pestaña
             </p>
 
             <div class="radius-slider-container">
@@ -196,22 +268,22 @@
 
           <div class="section-header" style="margin-top: 0.5rem;">
             <h3 class="section-title" style="font-size: 0.9rem;">Resultados Cercanos</h3>
-            <span id="nearResultsCount" class="count-badge">0 elementos</span>
+            <span id="nearResultsCount" class="count-badge">0 zonas</span>
           </div>
 
           <div id="nearMeResultsList" class="near-me-results">
-            <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 1.5rem;">
-              <i class="fa-solid fa-location-dot" style="font-size: 2rem; margin-bottom: 8px; color: #CBD5E1;"></i><br>
-              Pulsa en "Usar mi ubicación" o haz clic en el mapa estando en esta pestaña para buscar elementos infantiles cercanos.
+            <div class="near-empty-hint">
+              <i class="fa-solid fa-location-dot"></i>
+              Pulsa en "Usar mi ubicación" o toca el mapa en esta pestaña para buscar zonas cercanas.
             </div>
           </div>
         </div>
 
-        <!-- Tab 4: 3D Tree Shade & Weather Analysis -->
+        <!-- Tab 4: 3D Tree Shade -->
         <div id="tab-shade" class="tab-pane">
           <div class="section-header">
             <h2 class="section-title">
-              <i class="fa-solid fa-tree"></i> Sombras y Clima 3D
+              <i class="fa-solid fa-tree"></i> Sombras 3D
             </h2>
           </div>
 
@@ -226,40 +298,13 @@
               </label>
             </div>
 
-            <p style="font-size: 0.8rem; color: var(--text-muted);">
+            <p class="filter-hint">
               En móviles el arbolado se desactiva por defecto. En escritorio aparece al acercar la cámara.
             </p>
 
             <button id="btnOpenDaylight" class="btn-locate" style="background: #D97706;">
               <i class="fa-solid fa-sun"></i> Control Solar y Hora del Día
             </button>
-
-            <div class="filter-group" style="margin-top: 8px;">
-              <label class="filter-label">
-                <i class="fa-solid fa-cloud-sun-rain"></i> Condiciones Climatológicas
-              </label>
-              <div class="weather-grid">
-                <button class="weather-btn active" data-weather="sunny">
-                  <i class="fa-solid fa-sun" style="color: #F59E0B;"></i> Soleado
-                </button>
-                <button class="weather-btn" data-weather="cloudy">
-                  <i class="fa-solid fa-cloud" style="color: #64748B;"></i> Nublado
-                </button>
-                <button class="weather-btn" data-weather="rainy">
-                  <i class="fa-solid fa-cloud-showers-heavy" style="color: #0284C7;"></i> Lluvia
-                </button>
-                <button class="weather-btn" data-weather="snowy">
-                  <i class="fa-solid fa-snowflake" style="color: #38BDF8;"></i> Nieve
-                </button>
-                <button class="weather-btn" data-weather="foggy">
-                  <i class="fa-solid fa-smog" style="color: #94A3B8;"></i> Niebla
-                </button>
-                <button id="btnOpenWeatherWidget" class="weather-btn" style="background: var(--primary-light); color: var(--primary);">
-                  <i class="fa-solid fa-sliders"></i> Ajustes
-                </button>
-              </div>
-            </div>
-
           </div>
         </div>
 
@@ -272,7 +317,7 @@
       <!-- Loading Overlay -->
       <div id="loadingOverlay" class="loading-overlay">
         <div class="spinner"></div>
-        <p style="font-weight: 600; color: var(--primary);">Cargando mapa e inventario municipal...</p>
+        <p class="loading-copy">Cargando mapa e inventario municipal...</p>
       </div>
 
       <!-- Floating Map Buttons -->
@@ -288,12 +333,42 @@
         </button>
       </div>
 
-      <!-- Container for ArcGIS Daylight & Weather Widgets in 3D -->
       <div id="daylightWidgetContainer" class="daylight-widget-container"></div>
-      <div id="weatherWidgetContainer" class="weather-widget-container"></div>
+      <div id="basemapMenu" class="basemap-menu">
+        <button class="basemap-option active" data-basemap="topo-vector">
+          <i class="fa-solid fa-map"></i> Topográfico
+        </button>
+        <button class="basemap-option" data-basemap="hybrid">
+          <i class="fa-solid fa-globe"></i> Satélite / Híbrido
+        </button>
+        <button class="basemap-option" data-basemap="streets-vector">
+          <i class="fa-solid fa-city"></i> Callejero
+        </button>
+        <button class="basemap-option" data-basemap="gray-vector">
+          <i class="fa-solid fa-sun"></i> Gris Claro
+        </button>
+        <button class="basemap-option" data-basemap="dark-gray-vector">
+          <i class="fa-solid fa-moon"></i> Gris Oscuro
+        </button>
+        <button class="basemap-option" data-basemap="osm">
+          <i class="fa-solid fa-route"></i> OpenStreetMap
+        </button>
+      </div>
 
       <!-- Unified ArcGIS Map Container -->
       <div id="viewDiv"></div>
+
+      <div id="nearMeSheet" class="near-me-sheet" hidden>
+        <button type="button" class="near-me-sheet-handle" id="nearMeSheetHandle" aria-label="Resultados cerca de mí"></button>
+        <div class="near-me-sheet-header">
+          <h3><i class="fa-solid fa-location-crosshairs"></i> Cerca de mí</h3>
+          <span id="nearMeSheetCount" class="count-badge">0 zonas</span>
+          <button type="button" id="nearMeSheetClose" class="near-me-sheet-close" aria-label="Cerrar resultados">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div id="nearMeSheetList" class="near-me-results near-me-sheet-list"></div>
+      </div>
 
     </main>
 
@@ -303,6 +378,6 @@
   <script src="https://js.arcgis.com/4.30/"></script>
   
   <!-- Main Application Logic -->
-  <script src="js/app.js?v=20260828-no3dmobile"></script>
+  <script src="js/app.js?v=20260911-mail1btn"></script>
 </body>
 </html>
