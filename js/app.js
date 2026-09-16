@@ -102,7 +102,7 @@ require([
   // Layer definitions mapping with 2D icons and 3D perspective icons
   const GAME_LAYERS_CONFIG = [
     { id: 9, layerId: 9, key: "areas", name: "Área infantil", icon2D: "parque-de-atracciones.png", isPolygon: true, tipoWhere: "TIPO = 'AREA INFANTIL'" },
-    { id: "agua", layerId: 9, key: "agua", name: "Juegos de agua", icon2D: "juegos_agua.png", isPolygon: true, tipoWhere: "TIPO = 'JUEGOS DE AGUA'" },
+    { id: "agua", layerId: 9, key: "agua", name: "Juegos de agua", icon2D: "splash-icon.png", isPolygon: true, tipoWhere: "TIPO = 'JUEGOS DE AGUA'" },
     { id: 0, key: "trepar", name: "Juego de trepar", icon2D: "Iconos 2D/trepar.png", color: "#A16207", primitive: "sphere" },
     { id: 1, key: "tirolina", name: "Tirolina", icon2D: "Iconos 2D/tirolina.png", color: "#0891B2", primitive: "cylinder" },
     { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder", isAdultEquipment: true },
@@ -1778,7 +1778,7 @@ require([
 
     const zoneGroups = [
       { key: "infantiles", title: "Áreas infantiles", icon: (areaLayer && areaLayer.config.icon2D) || AREA_OVERVIEW_ICON, expandable: true, zones: infantiles },
-      { key: "agua", title: "Juegos de agua", icon: (waterLayer && waterLayer.config.icon2D) || "juegos_agua.png", expandable: false, zones: juegosAgua },
+      { key: "agua", title: "Juegos de agua", icon: (waterLayer && waterLayer.config.icon2D) || "splash-icon.png", expandable: false, zones: juegosAgua },
       { key: "biosaludable", title: "Biosaludable", icon: bioLayer ? bioLayer.config.icon2D : "", expandable: false, zones: biosaludable },
       { key: "calistenia", title: "Calistenia", icon: calLayer ? calLayer.config.icon2D : "", expandable: false, zones: calistenia },
       { key: "mesas", title: "Mesas de ping pong", icon: pingLayer ? pingLayer.config.icon2D : "", expandable: false, zones: mesas }
