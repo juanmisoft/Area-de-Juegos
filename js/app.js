@@ -451,7 +451,8 @@ require([
             }
           },
           {
-            type: "attachments"
+            type: "attachments",
+            displayType: "preview"
           }
         ]
       };
@@ -846,11 +847,16 @@ require([
       if (view2D.popup) {
         view2D.popup.autoNavigateEnabled = false;
         view2D.popup.dockEnabled = true;
+        view2D.popup.collapsed = false;
         view2D.popup.dockOptions = {
           buttonEnabled: false,
           breakpoint: false,
           position: perfProfile.isMobile ? "bottom-center" : "top-center"
         };
+        if (view2D.popup.visibleElements) {
+          view2D.popup.visibleElements.collapseButton = false;
+          view2D.popup.visibleElements.featureNavigation = false;
+        }
         view2D.popup.goToOverride = function() {
           return Promise.resolve();
         };
@@ -940,11 +946,16 @@ require([
       if (view3D.popup) {
         view3D.popup.autoNavigateEnabled = false;
         view3D.popup.dockEnabled = true;
+        view3D.popup.collapsed = false;
         view3D.popup.dockOptions = {
           buttonEnabled: false,
           breakpoint: false,
           position: "top-center"
         };
+        if (view3D.popup.visibleElements) {
+          view3D.popup.visibleElements.collapseButton = false;
+          view3D.popup.visibleElements.featureNavigation = false;
+        }
         view3D.popup.goToOverride = function() {
           return Promise.resolve();
         };
