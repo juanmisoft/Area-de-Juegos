@@ -101,7 +101,8 @@ require([
   
   // Layer definitions mapping with 2D icons and 3D perspective icons
   const GAME_LAYERS_CONFIG = [
-    { id: 9, key: "areas", name: "Área infantil", icon2D: "parque-de-atracciones.png", isPolygon: true },
+    { id: 9, layerId: 9, key: "areas", name: "Área infantil", icon2D: "parque-de-atracciones.png", isPolygon: true, tipoWhere: "TIPO = 'AREA INFANTIL'" },
+    { id: "agua", layerId: 9, key: "agua", name: "Juegos de agua", icon2D: "juegos_agua.png", isPolygon: true, tipoWhere: "TIPO = 'JUEGOS DE AGUA'" },
     { id: 0, key: "trepar", name: "Juego de trepar", icon2D: "Iconos 2D/trepar.png", color: "#A16207", primitive: "sphere" },
     { id: 1, key: "tirolina", name: "Tirolina", icon2D: "Iconos 2D/tirolina.png", color: "#0891B2", primitive: "cylinder" },
     { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder", isAdultEquipment: true },
@@ -166,8 +167,25 @@ require([
   ];
 
   const AREA_INFANTIL_WHERE = "TIPO = 'AREA INFANTIL'";
+  const AREA_AGUA_WHERE = "TIPO = 'JUEGOS DE AGUA'";
   const AREA_OVERVIEW_ICON = "parque-de-atracciones.png";
   const DEFAULT_SELECTED_GAME_ID = 9;
+
+  function getConfigLayerId(config) {
+    return config.layerId != null ? config.layerId : config.id;
+  }
+
+  function getPolygonWhere(config) {
+    return (config && config.tipoWhere) || AREA_INFANTIL_WHERE;
+  }
+
+  function getOverviewIcon(config) {
+    return (config && config.icon2D) || AREA_OVERVIEW_ICON;
+  }
+
+  function isInfantAreaSelection(selectedId) {
+    return selectedId === DEFAULT_SELECTED_GAME_ID;
+  }
   const AREA_SURFACE_EXPRESSION = `
     IIF(Upper(DefaultValue($feature.USO, '')) == 'PISCINA', 'PISCINA', DefaultValue($feature.TIPOSUELO, ''))
   `;
@@ -546,8 +564,9 @@ require([
     return perfProfile.areaIconMaxScale;
   }
 
-  function getAreaOverviewRenderer(for3D) {
-    const iconUrl = new URL(AREA_OVERVIEW_ICON, window.location.href).href;
+  function getAreaOverviewRenderer(for3D, iconFile) {
+    const iconPath = iconFile || AREA_OVERVIEW_ICON;
+    const iconUrl = new URL(iconPath, window.location.href).href;
     const size = perfProfile.zoneIconSize;
     if (for3D) {
       return new SimpleRenderer({
@@ -565,7 +584,7 @@ require([
     }
     return new SimpleRenderer({
       symbol: new PictureMarkerSymbol({
-        url: AREA_OVERVIEW_ICON,
+        url: iconPath,
         width: `${size}px`,
         height: `${size}px`
       }),
@@ -699,8 +718,8 @@ require([
     const sortedConfigs = [...GAME_LAYERS_CONFIG].sort((a, b) => (b.isPolygon ? 1 : 0) - (a.isPolygon ? 1 : 0));
 
     sortedConfigs.forEach(cfg => {
-      const url = `${SERVER_URL}/${cfg.id}`;
-      const infantWhere = cfg.isPolygon ? AREA_INFANTIL_WHERE : "1=1";
+      const url = `${SERVER_URL}/${getConfigLayerId(cfg)}`;
+      const infantWhere = cfg.isPolygon ? getPolygonWhere(cfg) : "1=1";
       
       const layer2D = new FeatureLayer({
         url: url,
@@ -745,7 +764,7 @@ require([
           popupEnabled: true,
           labelsVisible: false,
           labelingInfo: null,
-          definitionExpression: AREA_INFANTIL_WHERE,
+          definitionExpression: infantWhere,
           minScale: perfProfile.areaDetailScale,
           opacity: 0.28,
           elevationInfo: { mode: "on-the-ground" },
@@ -755,30 +774,30 @@ require([
 
         overview2D = new FeatureLayer({
           url: url,
-          title: "Áreas de juego (vista general)",
+          title: `${cfg.name} (vista general)`,
           outFields: ["*"],
           popupEnabled: true,
           legendEnabled: false,
           listMode: "hide",
-          definitionExpression: AREA_INFANTIL_WHERE,
+          definitionExpression: infantWhere,
           minScale: 0,
           maxScale: perfProfile.areaIconMaxScale,
           labelsVisible: false,
-          renderer: getAreaOverviewRenderer(false)
+          renderer: getAreaOverviewRenderer(false, getOverviewIcon(cfg))
         });
         overview3D = new FeatureLayer({
           url: url,
-          title: "Áreas de juego (vista general)",
+          title: `${cfg.name} (vista general)`,
           outFields: ["*"],
           popupEnabled: true,
           legendEnabled: false,
           listMode: "hide",
-          definitionExpression: AREA_INFANTIL_WHERE,
+          definitionExpression: infantWhere,
           minScale: 0,
           maxScale: perfProfile.areaIconMaxScale,
           labelsVisible: false,
           elevationInfo: { mode: "relative-to-ground", offset: 1.2 },
-          renderer: getAreaOverviewRenderer(true)
+          renderer: getAreaOverviewRenderer(true, getOverviewIcon(cfg))
         });
         map2D.add(overview2D);
         map3D.add(overview3D);
@@ -1076,12 +1095,12 @@ require([
   function layerMatchesCurrentSelection(item) {
     const selectedId = getSelectedGameId();
     if (item.config.id === selectedId) return true;
-    if (selectedId === DEFAULT_SELECTED_GAME_ID && (isPlayElementConfig(item.config) || item.config.isAdultEquipment)) return true;
+    if (isInfantAreaSelection(selectedId) && (isPlayElementConfig(item.config) || item.config.isAdultEquipment)) return true;
     return false;
   }
 
   function buildAttributeWhereClauses(item) {
-    if (item.config.isPolygon) return [AREA_INFANTIL_WHERE];
+    if (item.config.isPolygon) return [getPolygonWhere(item.config)];
 
     const availableFields = item.fields || [];
     const hasEdad = availableFields.includes("EDAD") || availableFields.includes("EDAD_G");
@@ -1188,14 +1207,18 @@ require([
 
     for (const item of activeLayers2D) {
       const countBadge = document.getElementById(`count-${item.config.id}`);
+      const countEvenIfHidden = !!item.config.isPolygon;
 
-      if (!item.layer.visible) {
+      if (!item.layer.visible && !countEvenIfHidden) {
         if (countBadge) countBadge.textContent = "0";
         continue;
       }
 
       try {
-        const count = await item.layer.queryFeatureCount({ where: item.layer.definitionExpression || "1=1" });
+        const where = item.config.isPolygon
+          ? getPolygonWhere(item.config)
+          : (item.layer.definitionExpression || "1=1");
+        const count = await item.layer.queryFeatureCount({ where });
         if (countBadge) countBadge.textContent = count;
         if (selectedCfg && item.config.id === selectedCfg.id) selectedCount = count;
       } catch (e) {
@@ -1687,14 +1710,16 @@ require([
     if (sheetList) sheetList.innerHTML = loadingHtml;
 
     const findCfg = (pred) => activeLayers2D.find((item) => pred(item.config));
-    const areaLayer = findCfg((cfg) => cfg.isPolygon);
+    const areaLayer = findCfg((cfg) => cfg.key === "areas");
+    const waterLayer = findCfg((cfg) => cfg.key === "agua");
     const bioLayer = findCfg((cfg) => cfg.key === "biosaludable");
     const calLayer = findCfg((cfg) => cfg.key === "calistenia");
     const pingLayer = findCfg((cfg) => cfg.key === "pingpong");
     const playLayers = activeLayers2D.filter((item) => !item.config.isPolygon && !item.config.isAdultEquipment);
 
-    const [areaFeats, bioFeats, calFeats, pingFeats] = await Promise.all([
-      queryLayerInBuffer(areaLayer && areaLayer.layer, geometry, AREA_INFANTIL_WHERE),
+    const [areaFeats, waterFeats, bioFeats, calFeats, pingFeats] = await Promise.all([
+      queryLayerInBuffer(areaLayer && areaLayer.layer, geometry, getPolygonWhere(areaLayer && areaLayer.config)),
+      queryLayerInBuffer(waterLayer && waterLayer.layer, geometry, AREA_AGUA_WHERE),
       queryLayerInBuffer(bioLayer && bioLayer.layer, geometry, "1=1"),
       queryLayerInBuffer(calLayer && calLayer.layer, geometry, "1=1"),
       queryLayerInBuffer(pingLayer && pingLayer.layer, geometry, "1=1")
@@ -1702,6 +1727,11 @@ require([
 
     const infantiles = areaFeats
       .map((feat) => toNearMeItem(feat, areaLayer && areaLayer.config, userPoint))
+      .filter(Boolean)
+      .sort((a, b) => a.distance - b.distance);
+
+    const juegosAgua = waterFeats
+      .map((feat) => toNearMeItem(feat, waterLayer && waterLayer.config, userPoint))
       .filter(Boolean)
       .sort((a, b) => a.distance - b.distance);
 
@@ -1748,6 +1778,7 @@ require([
 
     const zoneGroups = [
       { key: "infantiles", title: "Áreas infantiles", icon: (areaLayer && areaLayer.config.icon2D) || AREA_OVERVIEW_ICON, expandable: true, zones: infantiles },
+      { key: "agua", title: "Juegos de agua", icon: (waterLayer && waterLayer.config.icon2D) || "juegos_agua.png", expandable: false, zones: juegosAgua },
       { key: "biosaludable", title: "Biosaludable", icon: bioLayer ? bioLayer.config.icon2D : "", expandable: false, zones: biosaludable },
       { key: "calistenia", title: "Calistenia", icon: calLayer ? calLayer.config.icon2D : "", expandable: false, zones: calistenia },
       { key: "mesas", title: "Mesas de ping pong", icon: pingLayer ? pingLayer.config.icon2D : "", expandable: false, zones: mesas }
