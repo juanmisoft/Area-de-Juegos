@@ -1,0 +1,38 @@
+Áreas de juego — visor web estático (Ayuntamiento de Rivas Vaciamadrid)
+======================================================================
+
+QUÉ ES
+  Página web de consulta pública del inventario de áreas infantiles,
+  juegos de agua, biosaludable, calistenia y ping pong.
+
+QUÉ NO ES (importante)
+  - No es una aplicación de ArcGIS Portal ni de ArcGIS Server.
+  - No hay login, usuarios, tokens ni backend.
+  - No hay base de datos, ASP.NET, PHP ni Node.
+  - IIS / Apache solo entrega ficheros (HTML, CSS, JS, imágenes).
+  - Esta carpeta NO sustituye ni se mete dentro de /portal ni /server.
+
+DE DÓNDE SALEN LOS DATOS
+  El navegador del ciudadano consulta servicios YA públicos en:
+  https://sit.rivasciudad.es/server/rest/services/
+    AREA_JUEGO_VISUALIZACION
+    ARBOLADO_VISOR_AREAS
+    Termino_municipal_actual
+  La seguridad de esos servicios la gestiona el SIT (lectura anónima).
+  Este visor no escribe en el geodatabase.
+
+CÓMO PUBLICAR
+  1. Copiar esta carpeta "areas-de-juego" tal cual (mantener la estructura).
+  2. Documento predeterminado: index.html
+  3. Permisos: solo lectura para el usuario del sitio web.
+  4. HTTPS. No publicar en HTTP (falla la ubicación del navegador).
+  5. No colocarla dentro de las aplicaciones Web Adaptor /portal o /server.
+
+  URL de ejemplo (a confirmar por teleco):
+  https://sit.rivasciudad.es/Servicios_web/areas-de-juego/
+
+  El servidor NO necesita abrir salida a internet para ArcGIS:
+  las llamadas las hace el navegador del usuario.
+
+CONTACTO FUNCIONAL
+  Oficina de Información Territorial / SIT — visor Áreas de juego
