@@ -861,6 +861,7 @@ require([
     view2D.when(() => {
       document.getElementById("loadingOverlay").style.display = "none";
       applyCombinedFilters();
+      bindPopupVisibility(view2D);
     });
 
     view2D.on("click", async (evt) => {
@@ -1424,18 +1425,37 @@ require([
     queryNearMeResults(circleGeometry, mapPoint);
   }
 
+  function isPopupOpenOnView(view) {
+    const popup = view && view.popup;
+    if (!popup) return false;
+    if (popup.visible === false) return false;
+    const features = popup.features || [];
+    return features.length > 0 || !!popup.selectedFeature || popup.visible === true;
+  }
+
+  function syncPopupOverlays(view) {
+    const open = isPopupOpenOnView(view);
+    document.body.classList.toggle("popup-visible", open);
+    if (!isMobileLayout()) return;
+    const sheet = document.getElementById("nearMeSheet");
+    if (open) {
+      if (sheet && !sheet.hidden && sheet.classList.contains("open") && !sheet.classList.contains("minimized")) {
+        setNearMeSheetOpen(true, true);
+      }
+    }
+  }
+
   function bindPopupVisibility(view) {
     if (!view || !view.popup || view.popup.__rivasPopupBound) return;
     view.popup.__rivasPopupBound = true;
-    view.popup.watch("visible", (visible) => {
-      document.body.classList.toggle("popup-visible", !!visible);
-      if (visible && isMobileLayout()) {
-        const sheet = document.getElementById("nearMeSheet");
-        if (sheet && !sheet.hidden && sheet.classList.contains("open")) {
-          setNearMeSheetOpen(true, true);
-        }
-      }
-    });
+    const sync = () => syncPopupOverlays(view);
+    view.popup.watch("visible", sync);
+    view.popup.watch("features", sync);
+    view.popup.watch("selectedFeature", sync);
+    if (view.popup.viewModel) {
+      view.popup.viewModel.watch("visible", sync);
+    }
+    sync();
   }
 
   function toViewPoint(point) {

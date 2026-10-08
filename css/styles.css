@@ -1551,9 +1551,17 @@ html.show-welcome .welcome-overlay:not(.report-overlay) {
   }
 
   body.popup-visible .map-floating-controls,
-  body.popup-visible .basemap-menu {
-    visibility: hidden;
-    pointer-events: none;
+  body.popup-visible .basemap-menu,
+  body.popup-visible .near-me-sheet,
+  body.popup-visible .esri-zoom,
+  body.popup-visible .esri-ui-top-left,
+  body.popup-visible .esri-ui-top-right,
+  body.popup-visible .esri-ui-bottom-left,
+  body.popup-visible .esri-ui-bottom-right,
+  body.popup-visible .esri-attribution {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   .esri-popup--is-docked .esri-popup__main-container {
