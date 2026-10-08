@@ -12,6 +12,7 @@ require([
   "esri/geometry/Point",
   "esri/geometry/Circle",
   "esri/geometry/geometryEngine",
+  "esri/geometry/support/webMercatorUtils",
   "esri/renderers/SimpleRenderer",
   "esri/renderers/UniqueValueRenderer",
   "esri/symbols/PictureMarkerSymbol",
@@ -36,6 +37,7 @@ require([
   Point,
   Circle,
   geometryEngine,
+  webMercatorUtils,
   SimpleRenderer,
   UniqueValueRenderer,
   PictureMarkerSymbol,
@@ -847,6 +849,7 @@ require([
         view2D.popup.goToOverride = function() {
           return Promise.resolve();
         };
+        bindPopupVisibility(view2D);
       }
     } catch (popupErr) {
       console.warn("Popup 2D config:", popupErr);
@@ -946,6 +949,7 @@ require([
         view3D.popup.goToOverride = function() {
           return Promise.resolve();
         };
+        bindPopupVisibility(view3D);
       }
 
       view3D.on("click", async (evt) => {
@@ -1188,17 +1192,8 @@ require([
 
     for (const item of activeLayers2D) {
       const countBadge = document.getElementById(`count-${item.config.id}`);
-      const countEvenIfHidden = !!item.config.isPolygon;
-
-      if (!item.layer.visible && !countEvenIfHidden) {
-        if (countBadge) countBadge.textContent = "0";
-        continue;
-      }
-
       try {
-        const where = item.config.isPolygon
-          ? getPolygonWhere(item.config)
-          : (item.layer.definitionExpression || "1=1");
+        const where = item.config.isPolygon ? getPolygonWhere(item.config) : "1=1";
         const count = await item.layer.queryFeatureCount({ where });
         if (countBadge) countBadge.textContent = count;
         if (selectedCfg && item.config.id === selectedCfg.id) selectedCount = count;
@@ -1381,15 +1376,19 @@ require([
   }
 
   function setUserNearMePoint(point) {
-    userLocationPoint = point;
+    const mapPoint = toViewPoint(point);
+    if (!mapPoint) return;
+    userLocationPoint = mapPoint;
     nearMeGraphicsLayer.removeAll();
 
     const btnClear = document.getElementById("btnClearNearMe");
     if (btnClear) btnClear.style.display = "flex";
 
-    // User marker
+    closeMobileSidebar();
+    if (isMobileLayout()) setNearMeSheetOpen(false);
+
     const userMarker = new Graphic({
-      geometry: point,
+      geometry: mapPoint,
       symbol: new SimpleMarkerSymbol({
         style: "circle",
         color: [217, 119, 6, 0.9],
@@ -1400,9 +1399,10 @@ require([
 
     const radiusMeters = parseInt(document.getElementById("radiusRange").value) || 500;
 
-    // Buffer Circle
     const circleGeometry = new Circle({
-      center: point,
+      center: mapPoint,
+      geodesic: false,
+      numberOfPoints: 64,
       radius: radiusMeters,
       radiusUnit: "meters"
     });
@@ -1417,17 +1417,46 @@ require([
 
     nearMeGraphicsLayer.addMany([circleGraphic, userMarker]);
 
-    queryNearMeResults(circleGeometry, point);
+    if (currentView) {
+      currentView.goTo({ target: circleGeometry }, { duration: 700 }).catch(() => {});
+    }
+
+    queryNearMeResults(circleGeometry, mapPoint);
+  }
+
+  function bindPopupVisibility(view) {
+    if (!view || !view.popup || view.popup.__rivasPopupBound) return;
+    view.popup.__rivasPopupBound = true;
+    view.popup.watch("visible", (visible) => {
+      document.body.classList.toggle("popup-visible", !!visible);
+      if (visible && isMobileLayout()) {
+        const sheet = document.getElementById("nearMeSheet");
+        if (sheet && !sheet.hidden && sheet.classList.contains("open")) {
+          setNearMeSheetOpen(true, true);
+        }
+      }
+    });
+  }
+
+  function toViewPoint(point) {
+    if (!point) return point;
+    const sr = point.spatialReference;
+    if (sr && (sr.isWGS84 || sr.wkid === 4326 || sr.isGeographic)) {
+      try {
+        return webMercatorUtils.geographicToWebMercator(point);
+      } catch (err) {
+        console.warn("Proyección GPS:", err);
+      }
+    }
+    return point;
   }
 
   function syncMobilePopupDock() {
     if (!view2D || !view2D.popup) return;
-    const sheet = document.getElementById("nearMeSheet");
-    const sheetOpen = !!(sheet && sheet.classList.contains("open") && !sheet.hidden);
     view2D.popup.dockOptions = {
       buttonEnabled: false,
       breakpoint: false,
-      position: isMobileLayout() && !sheetOpen ? "bottom-center" : "top-center"
+      position: isMobileLayout() ? "bottom-center" : "top-center"
     };
   }
 
@@ -1475,6 +1504,9 @@ require([
     query.outFields = ["*"];
     query.returnGeometry = true;
     query.where = whereExpr || "1=1";
+    if (currentView && currentView.spatialReference) {
+      query.outSpatialReference = currentView.spatialReference;
+    }
     try {
       const res = await layer.queryFeatures(query);
       return res.features || [];
@@ -1771,7 +1803,7 @@ require([
 
     if (isMobileLayout()) {
       closeMobileSidebar();
-      setNearMeSheetOpen(true, false);
+      setNearMeSheetOpen(true, true);
     }
   }
 
@@ -2055,13 +2087,15 @@ require([
           (pos) => {
             const pt = new Point({
               longitude: pos.coords.longitude,
-              latitude: pos.coords.latitude
+              latitude: pos.coords.latitude,
+              spatialReference: { wkid: 4326 }
             });
             setUserNearMePoint(pt);
           },
           (err) => {
             alert("No se pudo obtener su ubicación GPS. Por favor, haga clic directamente en el mapa.");
-          }
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       }
     });
