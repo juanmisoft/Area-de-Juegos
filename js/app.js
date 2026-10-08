@@ -840,7 +840,7 @@ require([
         view2D.popup.dockOptions = {
           buttonEnabled: false,
           breakpoint: false,
-          position: perfProfile.isMobile ? "bottom-center" : "top-center"
+          position: isMobileLayout() ? "bottom-center" : "top-center"
         };
         if (view2D.popup.visibleElements) {
           view2D.popup.visibleElements.collapseButton = false;
@@ -1425,35 +1425,49 @@ require([
     queryNearMeResults(circleGeometry, mapPoint);
   }
 
-  function isPopupOpenOnView(view) {
-    const popup = view && view.popup;
-    if (!popup) return false;
-    if (popup.visible === false) return false;
-    const features = popup.features || [];
-    return features.length > 0 || !!popup.selectedFeature || popup.visible === true;
+  function isEsriPopupOpen() {
+    const el = document.querySelector(".esri-popup");
+    if (!el || el.classList.contains("esri-hidden")) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    return el.clientHeight > 8;
   }
 
   function syncPopupOverlays(view) {
-    const open = isPopupOpenOnView(view);
+    const open = isEsriPopupOpen();
     document.body.classList.toggle("popup-visible", open);
-    if (!isMobileLayout()) return;
+    if (!view || !view.popup || !isMobileLayout()) return;
+    view.popup.dockOptions = {
+      buttonEnabled: false,
+      breakpoint: false,
+      position: "bottom-center"
+    };
     const sheet = document.getElementById("nearMeSheet");
-    if (open) {
-      if (sheet && !sheet.hidden && sheet.classList.contains("open") && !sheet.classList.contains("minimized")) {
-        setNearMeSheetOpen(true, true);
-      }
+    if (open && sheet && !sheet.hidden && sheet.classList.contains("open") && !sheet.classList.contains("minimized")) {
+      setNearMeSheetOpen(true, true);
     }
   }
 
   function bindPopupVisibility(view) {
-    if (!view || !view.popup || view.popup.__rivasPopupBound) return;
-    view.popup.__rivasPopupBound = true;
+    if (!view || !view.popup || view.__rivasPopupBound) return;
+    view.__rivasPopupBound = true;
     const sync = () => syncPopupOverlays(view);
-    view.popup.watch("visible", sync);
-    view.popup.watch("features", sync);
-    view.popup.watch("selectedFeature", sync);
+    ["visible", "features", "selectedFeature"].forEach((prop) => {
+      try { view.popup.watch(prop, sync); } catch (e) {}
+    });
     if (view.popup.viewModel) {
-      view.popup.viewModel.watch("visible", sync);
+      try { view.popup.viewModel.watch("visible", sync); } catch (e) {}
+      try { view.popup.viewModel.watch("features", sync); } catch (e) {}
+    }
+    const root = view.container || document.getElementById("viewDiv");
+    if (root && typeof MutationObserver === "function") {
+      const obs = new MutationObserver(sync);
+      obs.observe(root, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["class", "style", "hidden"]
+      });
     }
     sync();
   }
