@@ -866,12 +866,21 @@ body {
 }
 
 /* Route GPS Button - White text */
-.btn-route, .popup-btn-route {
+.popup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 6px;
+}
+
+.btn-route, .popup-btn-route,
+.btn-share, .popup-btn-share {
+  margin-top: 0;
   padding: 8px 14px;
   background: #0284C7;
   color: #FFFFFF !important;
   text-decoration: none;
+  border: none;
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 700;
@@ -881,11 +890,49 @@ body {
   gap: 8px;
   box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
   transition: var(--transition);
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
 }
 
 .btn-route:hover, .popup-btn-route:hover {
   background: #0369A1;
   color: #FFFFFF !important;
+}
+
+.btn-share, .popup-btn-share {
+  background: #0F766E;
+  box-shadow: 0 2px 6px rgba(15, 118, 110, 0.28);
+}
+
+.btn-share:hover, .popup-btn-share:hover {
+  background: #0D9488;
+  color: #FFFFFF !important;
+}
+
+.share-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.4rem;
+  transform: translateX(-50%) translateY(120%);
+  z-index: 12000;
+  background: #0F172A;
+  color: #FFFFFF;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  max-width: min(92vw, 360px);
+  text-align: center;
+}
+
+.share-toast.is-visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
 }
 
 /* Shade & Sun Analysis Panel (3D) */
@@ -903,6 +950,30 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.fuentes-toggle-row {
+  gap: 12px;
+  padding: 0.55rem 0.65rem;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--radius-md);
+}
+
+.fuentes-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.fuentes-toggle-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .switch {

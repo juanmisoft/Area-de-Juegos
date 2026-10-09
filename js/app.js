@@ -60,6 +60,8 @@ require([
   // Solo URL pública del FeatureServer (no portalItem: evita login)
   const FUENTES_LAYER_URL = "https://sit.rivasciudad.es/server/rest/services/Fuentes/FeatureServer/0";
   const FUENTE_RADIUS_M = 50;
+  const FUENTE_ICON_URL = "Iconos 2D/grifo-de-agua.png";
+  const AREAS_NEAR_FUENTE_WHERE = "TIPO = 'AREA INFANTIL' OR TIPO = 'JUEGOS DE AGUA'";
   const VIEW_CENTER = [-3.518, 40.353];
   const VIEW_ZOOM = 13;
   const VIEW_CENTER_MOBILE = [-3.536, 40.350];
@@ -116,8 +118,8 @@ require([
     { id: 7, key: "balancin", name: "Balancín", icon2D: "Iconos 2D/balancin.png", color: "#D97706", primitive: "cylinder" },
     { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube", isAdultEquipment: true },
     { id: 13, key: "tobogan", name: "Tobogán", icon2D: "Iconos 2D/tobogan.png", color: "#EA580C", primitive: "cone" },
-    { id: "cama", layerId: 14, key: "cama", name: "Camas elásticas", icon2D: "Iconos 2D/CamaElastica.png", color: "#DB2777", primitive: "cylinder", tipoWhere: "UPPER(ELEMENTO) LIKE '%CAMA%'" },
-    { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/casa.png", color: "#6B7280", primitive: "cube", tipoWhere: "ELEMENTO IS NULL OR UPPER(ELEMENTO) NOT LIKE '%CAMA%'" },
+    { id: "cama", layerId: 19, key: "cama", name: "Camas elásticas", icon2D: "Iconos 2D/CamaElastica.png", color: "#DB2777", primitive: "cylinder" },
+    { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/casa.png", color: "#6B7280", primitive: "cube" },
     { id: 16, key: "compactos", name: "Multijuego / Compactos", icon2D: "Iconos 2D/Multijuego.png", color: "#E11D48", primitive: "cube" },
     { id: 17, key: "elemento", name: "Elemento de juego", icon2D: "Iconos 2D/Elemento_juego.png", color: "#0D9488", primitive: "sphere" },
     { id: 18, key: "red", name: "Red de trepa", icon2D: "Iconos 2D/Red.png", color: "#4F46E5", primitive: "cone" },
@@ -312,6 +314,20 @@ require([
   let nearMeGraphicsLayer = new GraphicsLayer({ title: "Búsqueda Cerca de mí" });
   let nearMeSelectLayer2D = new GraphicsLayer({ title: "Selección Cerca de mí", listMode: "hide" });
   let nearMeSelectLayer3D = new GraphicsLayer({ title: "Selección Cerca de mí", listMode: "hide" });
+  let fuentesNearLayer2D = new GraphicsLayer({
+    title: "Fuentes cerca de áreas",
+    listMode: "hide",
+    visible: false,
+    popupEnabled: false
+  });
+  let fuentesNearLayer3D = new GraphicsLayer({
+    title: "Fuentes cerca de áreas",
+    listMode: "hide",
+    visible: false,
+    popupEnabled: false
+  });
+  let fuentesNearLoaded = false;
+  let fuentesNearLoading = null;
   let userLocationPoint = null;
 
   // Filter States
@@ -365,6 +381,124 @@ require([
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  let lastSharePayload = null;
+  let shareToastTimer = null;
+
+  function getAppShareUrl() {
+    return window.location.origin + window.location.pathname + window.location.search;
+  }
+
+  function getMapsUrl(lat, lon) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+  }
+
+  function showShareToast(message) {
+    let toast = document.getElementById("shareToast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "shareToast";
+      toast.className = "share-toast";
+      toast.setAttribute("role", "status");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    if (shareToastTimer) clearTimeout(shareToastTimer);
+    shareToastTimer = setTimeout(() => {
+      toast.classList.remove("is-visible");
+    }, 2400);
+  }
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    document.body.removeChild(area);
+  }
+
+  async function sharePayload(payload) {
+    const data = payload || lastSharePayload || buildAppSharePayload();
+    lastSharePayload = data;
+    const shareData = {
+      title: data.title,
+      text: data.text,
+      url: data.url
+    };
+
+    try {
+      if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+    }
+
+    try {
+      await copyTextToClipboard([data.title, data.text, data.url].filter(Boolean).join("\n"));
+      showShareToast("Información copiada. Ya puede pegarla donde quiera.");
+    } catch (err) {
+      showShareToast("No se pudo compartir. Copie el enlace manualmente.");
+    }
+  }
+
+  function buildAppSharePayload() {
+    const selectedCfg = GAME_LAYERS_CONFIG.find(cfg => cfg.id === getSelectedGameId()) || null;
+    const legendName = (document.getElementById("headerLegendName") || {}).textContent || "Áreas de juego";
+    const legendCount = (document.getElementById("headerLegendCount") || {}).textContent || "";
+    const lines = [
+      "Mapa de Áreas de juego — Ayuntamiento de Rivas Vaciamadrid",
+      selectedCfg ? `Vista: ${legendName}${legendCount ? " (" + legendCount + ")" : ""}` : null,
+      "Consulte parques infantiles, elementos de juego y zonas de ejercicio."
+    ].filter(Boolean);
+    return {
+      title: "Áreas de juego | Rivas Vaciamadrid",
+      text: lines.join("\n"),
+      url: getAppShareUrl()
+    };
+  }
+
+  function buildFeatureSharePayload(attrs, layerConfig, heading, lat, lon, fuenteInfo) {
+    const lines = [
+      heading || layerConfig.name,
+      layerConfig.isPolygon ? "Área de juego en Rivas Vaciamadrid" : ("Elemento: " + layerConfig.name),
+    ];
+    const detailPairs = [
+      ["Tipo", attrs.TIPO],
+      ["Elemento", attrs.ELEMENTO || attrs.NAME],
+      ["Tipo de suelo", attrs.TIPOSUELO || attrs.TIPO_DE_SUELO],
+      ["Edad recomendada", attrs.EDAD || attrs.EDAD_G],
+      ["Ubicación", attrs.UBICACION],
+      ["Código", attrs.CODIGO]
+    ];
+    detailPairs.forEach(([label, val]) => {
+      if (!popupHasValue(val)) return;
+      if (popupSameText(val, heading)) return;
+      lines.push(label + ": " + String(val).trim());
+    });
+    if (layerConfig.isPolygon) {
+      lines.push("Fuente: " + formatFuentePopupValue(fuenteInfo, attrs.FUENTE));
+    }
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      lines.push("Cómo llegar: " + getMapsUrl(lat, lon));
+    }
+    lines.push("Mapa municipal: " + getAppShareUrl());
+    return {
+      title: (heading || layerConfig.name) + " | Áreas de juego Rivas",
+      text: lines.join("\n"),
+      url: getAppShareUrl()
+    };
   }
 
   function popupHasValue(val) {
@@ -445,6 +579,127 @@ require([
     }
   }
 
+  function getFuenteMarkerSize() {
+    return perfProfile.isLowPower ? 22 : 26;
+  }
+
+  function createFuenteSymbol2D() {
+    const size = getFuenteMarkerSize();
+    return new PictureMarkerSymbol({
+      url: FUENTE_ICON_URL,
+      width: `${size}px`,
+      height: `${size}px`
+    });
+  }
+
+  function createFuenteSymbol3D() {
+    const size = getFuenteMarkerSize();
+    return new PointSymbol3D({
+      symbolLayers: [
+        new IconSymbol3DLayer({
+          resource: { href: new URL(FUENTE_ICON_URL, window.location.href).href },
+          size,
+          anchor: "bottom"
+        })
+      ]
+    });
+  }
+
+  async function loadNearbyFuentesGraphics() {
+    if (fuentesNearLoaded) return;
+    if (fuentesNearLoading) return fuentesNearLoading;
+
+    fuentesNearLoading = (async function() {
+      const areasLayer = new FeatureLayer({
+        url: `${SERVER_URL}/9`,
+        outFields: ["OBJECTID"]
+      });
+      const fuentesLayer = await getFuentesLayer();
+
+      const [areasResult, fuentesResult] = await Promise.all([
+        areasLayer.queryFeatures({
+          where: AREAS_NEAR_FUENTE_WHERE,
+          returnGeometry: true,
+          outFields: ["OBJECTID"],
+          num: 2000
+        }),
+        fuentesLayer.queryFeatures({
+          where: "1=1",
+          returnGeometry: true,
+          outFields: ["*"],
+          num: 2000
+        })
+      ]);
+
+      const areas = (areasResult && areasResult.features) || [];
+      const fuentes = (fuentesResult && fuentesResult.features) || [];
+      const symbol2D = createFuenteSymbol2D();
+      const symbol3D = createFuenteSymbol3D();
+      const seen = {};
+      const graphics2D = [];
+      const graphics3D = [];
+
+      fuentes.forEach((fuente) => {
+        if (!fuente.geometry) return;
+        const oid = fuente.attributes && (fuente.attributes.OBJECTID != null
+          ? fuente.attributes.OBJECTID
+          : fuente.attributes.objectid);
+        if (oid != null && seen[oid]) return;
+
+        let near = false;
+        for (let i = 0; i < areas.length; i++) {
+          const area = areas[i];
+          if (!area.geometry) continue;
+          const dist = geometryEngine.distance(area.geometry, fuente.geometry, "meters");
+          if (Number.isFinite(dist) && dist <= FUENTE_RADIUS_M) {
+            near = true;
+            break;
+          }
+        }
+        if (!near) return;
+        if (oid != null) seen[oid] = true;
+
+        const attrs = fuente.attributes || {};
+        graphics2D.push(new Graphic({
+          geometry: fuente.geometry,
+          symbol: symbol2D,
+          attributes: attrs
+        }));
+        graphics3D.push(new Graphic({
+          geometry: fuente.geometry,
+          symbol: symbol3D,
+          attributes: attrs
+        }));
+      });
+
+      fuentesNearLayer2D.removeAll();
+      fuentesNearLayer3D.removeAll();
+      fuentesNearLayer2D.addMany(graphics2D);
+      fuentesNearLayer3D.addMany(graphics3D);
+      fuentesNearLoaded = true;
+      console.info(`Fuentes cerca de áreas: ${graphics2D.length}`);
+    })().finally(() => {
+      fuentesNearLoading = null;
+    });
+
+    return fuentesNearLoading;
+  }
+
+  async function setFuentesNearVisible(visible) {
+    fuentesNearLayer2D.visible = !!visible;
+    fuentesNearLayer3D.visible = !!visible;
+    if (!visible) return;
+    try {
+      await loadNearbyFuentesGraphics();
+    } catch (err) {
+      console.warn("No se pudieron cargar las fuentes cercanas:", err && err.message ? err.message : err);
+      const toggle = document.getElementById("fuentesNearToggle");
+      if (toggle) toggle.checked = false;
+      fuentesNearLayer2D.visible = false;
+      fuentesNearLayer3D.visible = false;
+    }
+  }
+
   function getPlayPopupTitle(attrs, layerConfig) {
     const nombre = attrs.NOMBRE || attrs.UBICACION || "";
     const elemento = attrs.ELEMENTO || attrs.Elemento || attrs.NAME || "";
@@ -488,7 +743,7 @@ require([
                 }
               }
 
-              const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+              const navUrl = getMapsUrl(lat, lon);
 
               const buildCard = function(fuenteInfo) {
                 let rowsHtml = "";
@@ -508,15 +763,37 @@ require([
                   rowsHtml += `<div class="popup-detail-row"><strong>Fuente:</strong> <span>${escapeHtml(fuenteVal)}</span></div>`;
                 }
 
+                lastSharePayload = buildFeatureSharePayload(
+                  attrs,
+                  layerConfig,
+                  heading,
+                  lat,
+                  lon,
+                  fuenteInfo
+                );
+
                 const container = document.createElement("div");
                 container.className = "popup-custom-card";
                 container.innerHTML = `
                   <div class="popup-lead">${escapeHtml(heading)}</div>
                   <div class="popup-details-list">${rowsHtml}</div>
-                  <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route">
-                    <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
-                  </a>
+                  <div class="popup-actions">
+                    <button type="button" class="btn-share popup-btn-share">
+                      <i class="fa-solid fa-share-nodes"></i> Compartir
+                    </button>
+                    <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route">
+                      <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
+                    </a>
+                  </div>
                 `;
+                const shareBtn = container.querySelector(".popup-btn-share");
+                if (shareBtn) {
+                  shareBtn.addEventListener("click", (evt) => {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    sharePayload(lastSharePayload);
+                  });
+                }
                 return container;
               };
 
@@ -653,8 +930,7 @@ require([
               anchor: "center"
             })
           ]
-        }),
-        visualVariables: [getScaleSizeVariable(size)]
+        })
       });
     }
     return new SimpleRenderer({
@@ -662,9 +938,131 @@ require([
         url: iconPath,
         width: `${size}px`,
         height: `${size}px`
-      }),
-      visualVariables: [getScaleSizeVariable(size)]
+      })
     });
+  }
+
+  function getAreaClusterFeatureReduction(iconFile) {
+    const iconPath = iconFile || AREA_OVERVIEW_ICON;
+    const base = perfProfile.zoneIconSize;
+    const clusterSize = Math.max(base + 8, 36);
+    // Deja de agrupar bastante antes del detalle de polígonos,
+    // para ver iconos sueltos sin necesidad de tanto zoom.
+    const clusterMaxScale = Math.round(perfProfile.areaIconMaxScale * 3.2);
+    return {
+      type: "cluster",
+      clusterRadius: perfProfile.isLowPower ? "48px" : "55px",
+      clusterMinSize: `${clusterSize}px`,
+      clusterMaxSize: `${Math.round(clusterSize * 1.45)}px`,
+      maxScale: clusterMaxScale,
+      symbol: new PictureMarkerSymbol({
+        url: iconPath,
+        width: `${clusterSize}px`,
+        height: `${clusterSize}px`
+      }),
+      popupEnabled: false,
+      labelsVisible: true,
+      labelingInfo: [{
+        deconflictionStrategy: "none",
+        labelExpressionInfo: {
+          expression: "Text($feature.cluster_count, '#,###')"
+        },
+        labelPlacement: "center-center",
+        symbol: {
+          type: "text",
+          color: [255, 255, 255, 255],
+          haloColor: [0, 122, 61, 255],
+          haloSize: 2.2,
+          font: {
+            family: "Arial",
+            size: 12,
+            weight: "bold"
+          }
+        }
+      }]
+    };
+  }
+
+  function createAreaOverviewLayer(cfg, for3D) {
+    const iconFile = getOverviewIcon(cfg);
+    const layerProps = {
+      title: `${cfg.name} (vista general)`,
+      source: [],
+      objectIdField: "OBJECTID",
+      geometryType: "point",
+      spatialReference: { wkid: 25830 },
+      fields: [
+        { name: "OBJECTID", type: "oid" },
+        { name: "NOMBRE", type: "string", length: 255 },
+        { name: "TIPO", type: "string", length: 100 },
+        { name: "TIPOSUELO", type: "string", length: 100 },
+        { name: "TIPO_DE_SUELO", type: "string", length: 100 },
+        { name: "EDAD", type: "string", length: 50 },
+        { name: "EDAD_G", type: "string", length: 50 },
+        { name: "UBICACION", type: "string", length: 255 },
+        { name: "CODIGO", type: "string", length: 100 },
+        { name: "FUENTE", type: "string", length: 20 },
+        { name: "USO", type: "string", length: 100 },
+        { name: "NAME", type: "string", length: 255 }
+      ],
+      outFields: ["*"],
+      popupEnabled: true,
+      legendEnabled: false,
+      listMode: "hide",
+      minScale: 0,
+      maxScale: perfProfile.areaIconMaxScale,
+      labelsVisible: true,
+      renderer: getAreaOverviewRenderer(for3D, iconFile),
+      featureReduction: getAreaClusterFeatureReduction(iconFile),
+      visible: cfg.id === DEFAULT_SELECTED_GAME_ID
+    };
+    if (for3D) {
+      layerProps.elevationInfo = { mode: "relative-to-ground", offset: 1.2 };
+    }
+    return new FeatureLayer(layerProps);
+  }
+
+  async function populateAreaOverviewLayer(overviewLayer, cfg) {
+    if (!overviewLayer || !cfg) return;
+    const url = `${SERVER_URL}/${getConfigLayerId(cfg)}`;
+    const where = getPolygonWhere(cfg);
+    const serverLayer = new FeatureLayer({ url, outFields: ["*"] });
+    const result = await serverLayer.queryFeatures({
+      where,
+      returnGeometry: true,
+      outFields: ["*"],
+      num: 2000
+    });
+
+    const graphics = [];
+    (result.features || []).forEach((feature) => {
+      if (!feature.geometry) return;
+      const center = feature.geometry.centroid
+        || (feature.geometry.extent && feature.geometry.extent.center);
+      if (!center) return;
+      graphics.push(new Graphic({
+        geometry: new Point({
+          x: center.x,
+          y: center.y,
+          spatialReference: feature.geometry.spatialReference
+        }),
+        attributes: feature.attributes || {}
+      }));
+    });
+
+    const existing = await overviewLayer.queryFeatures({
+      where: "1=1",
+      returnGeometry: false,
+      outFields: [overviewLayer.objectIdField || "OBJECTID"]
+    });
+    const edits = {};
+    if (existing.features && existing.features.length) {
+      edits.deleteFeatures = existing.features;
+    }
+    if (graphics.length) edits.addFeatures = graphics;
+    if (edits.deleteFeatures || edits.addFeatures) {
+      await overviewLayer.applyEdits(edits);
+    }
   }
 
   // Helper renderer for Photorealistic 3D WebStyle Tree Symbol scaling by field ALTURA
@@ -847,37 +1245,22 @@ require([
         });
         map3D.add(areaCatcher3D);
 
-        overview2D = new FeatureLayer({
-          url: url,
-          title: `${cfg.name} (vista general)`,
-          outFields: ["*"],
-          popupEnabled: true,
-          legendEnabled: false,
-          listMode: "hide",
-          definitionExpression: infantWhere,
-          minScale: 0,
-          maxScale: perfProfile.areaIconMaxScale,
-          labelsVisible: false,
-          renderer: getAreaOverviewRenderer(false, getOverviewIcon(cfg))
-        });
-        overview3D = new FeatureLayer({
-          url: url,
-          title: `${cfg.name} (vista general)`,
-          outFields: ["*"],
-          popupEnabled: true,
-          legendEnabled: false,
-          listMode: "hide",
-          definitionExpression: infantWhere,
-          minScale: 0,
-          maxScale: perfProfile.areaIconMaxScale,
-          labelsVisible: false,
-          elevationInfo: { mode: "relative-to-ground", offset: 1.2 },
-          renderer: getAreaOverviewRenderer(true, getOverviewIcon(cfg))
-        });
+        overview2D = createAreaOverviewLayer(cfg, false);
+        overview3D = createAreaOverviewLayer(cfg, true);
         map2D.add(overview2D);
         map3D.add(overview3D);
-        overview2D.when(() => applyPlayPopupTemplate(overview2D, cfg));
-        overview3D.when(() => applyPlayPopupTemplate(overview3D, cfg));
+        overview2D.when(() => {
+          applyPlayPopupTemplate(overview2D, cfg);
+          populateAreaOverviewLayer(overview2D, cfg).catch((err) => {
+            console.warn("Vista general 2D:", err);
+          });
+        });
+        overview3D.when(() => {
+          applyPlayPopupTemplate(overview3D, cfg);
+          populateAreaOverviewLayer(overview3D, cfg).catch((err) => {
+            console.warn("Vista general 3D:", err);
+          });
+        });
       }
 
       activeLayers2D.push({ config: cfg, layer: layer2D, overview: overview2D, fields: [] });
@@ -905,7 +1288,9 @@ require([
     // Add GraphicsLayer for Near Me search on top of feature layers in 2D
     map2D.add(nearMeGraphicsLayer);
     map2D.add(nearMeSelectLayer2D);
+    map2D.add(fuentesNearLayer2D);
     map3D.add(nearMeSelectLayer3D);
+    map3D.add(fuentesNearLayer3D);
 
     // Initialize 2D View on container #viewDiv
     view2D = new MapView({
@@ -1370,6 +1755,20 @@ require([
       const hit = await view.hitTest(evt, { include: layers });
       const graphic = hit && hit.results && hit.results[0] && hit.results[0].graphic;
       if (!graphic || !graphic.geometry) return;
+
+      const attrs = graphic.attributes || {};
+      const clusterCount = Number(attrs.cluster_count);
+      const isCluster = !!(graphic.isAggregate || (Number.isFinite(clusterCount) && clusterCount > 1));
+      if (isCluster) {
+        const target = evt.mapPoint || graphic.geometry;
+        const nextScale = Math.max(
+          Math.round(view.scale * 0.55),
+          Math.round(perfProfile.areaIconMaxScale * 2.4)
+        );
+        await view.goTo({ target, scale: nextScale }, { duration: 450 });
+        return;
+      }
+
       await zoomViewToZoneGraphic(view, graphic);
     } catch (err) {
       console.warn("Zoom a zona:", err);
@@ -1975,6 +2374,16 @@ require([
       helpBtn.addEventListener("click", showWelcome);
     }
     setupReportIssue();
+    setupShare();
+  }
+
+  function setupShare() {
+    const shareBtn = document.getElementById("btnShare");
+    if (!shareBtn) return;
+    shareBtn.addEventListener("click", () => {
+      const popupOpen = document.body.classList.contains("popup-visible");
+      sharePayload(popupOpen && lastSharePayload ? lastSharePayload : buildAppSharePayload());
+    });
   }
 
   const REPORT_EMAIL = "oficinainformacionterritorial@rivasciudad.es";
@@ -2263,6 +2672,14 @@ require([
         if (arboladoLayer3D) {
           arboladoLayer3D.visible = e.target.checked;
         }
+      });
+    }
+
+    const fuentesToggle = document.getElementById("fuentesNearToggle");
+    if (fuentesToggle) {
+      fuentesToggle.checked = false;
+      fuentesToggle.addEventListener("change", (e) => {
+        setFuentesNearVisible(!!e.target.checked);
       });
     }
 
