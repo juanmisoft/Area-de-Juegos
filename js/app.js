@@ -430,10 +430,15 @@ require([
   async function sharePayload(payload) {
     const data = payload || lastSharePayload || buildAppSharePayload();
     lastSharePayload = data;
+    // Correo (y otras apps) se quedan solo con url y tiran text.
+    // Todo el mensaje va en text, enlace incluido, para que WhatsApp y el correo reciban lo mismo.
+    const chunks = [];
+    if (data.text) chunks.push(data.text);
+    if (data.url && (!data.text || data.text.indexOf(data.url) === -1)) chunks.push(data.url);
+    const body = chunks.join("\n\n");
     const shareData = {
-      title: data.title,
-      text: data.text,
-      url: data.url
+      title: data.title || "Áreas de juego",
+      text: body
     };
 
     try {
@@ -446,7 +451,7 @@ require([
     }
 
     try {
-      await copyTextToClipboard([data.title, data.text, data.url].filter(Boolean).join("\n"));
+      await copyTextToClipboard([data.title, body].filter(Boolean).join("\n"));
       showShareToast("Información copiada. Ya puede pegarla donde quiera.");
     } catch (err) {
       showShareToast("No se pudo compartir. Copie el enlace manualmente.");
@@ -540,10 +545,14 @@ require([
       lines.push("Fuente: " + formatFuenteShareValue(fuenteInfo, attrs.FUENTE));
     }
 
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      lines.push("");
+      lines.push("Cómo llegar: " + getMapsUrl(lat, lon));
+    }
+
     return {
-      title: String(areaName).trim() + " | Áreas de juego Rivas",
-      text: lines.join("\n"),
-      url: Number.isFinite(lat) && Number.isFinite(lon) ? getMapsUrl(lat, lon) : getAppShareUrl()
+      title: String(areaName).trim(),
+      text: lines.join("\n")
     };
   }
 
