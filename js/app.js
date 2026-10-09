@@ -57,6 +57,9 @@ require([
   const BUILDINGS_3D_URL = "https://basemaps3d.arcgis.com/arcgis/rest/services/OpenStreetMap3D_Buildings_v1/SceneServer";
   const ARBOLADO_V3_URL = "https://sit.rivasciudad.es/server/rest/services/ARBOLADO_VISOR_AREAS/FeatureServer/0"; // Item: 80098958485d465e9e61623d49e5edf3
   const TERMINO_MUNICIPAL_URL = "https://sit.rivasciudad.es/server/rest/services/Termino_municipal_actual/FeatureServer/0"; // Item: 6586b7e8e95c446698bfa8c65d7ed97c
+  // Solo URL pública del FeatureServer (no portalItem: evita login)
+  const FUENTES_LAYER_URL = "https://sit.rivasciudad.es/server/rest/services/Fuentes/FeatureServer/0";
+  const FUENTE_RADIUS_M = 50;
   const VIEW_CENTER = [-3.518, 40.353];
   const VIEW_ZOOM = 13;
   const VIEW_CENTER_MOBILE = [-3.536, 40.350];
@@ -113,7 +116,8 @@ require([
     { id: 7, key: "balancin", name: "Balancín", icon2D: "Iconos 2D/balancin.png", color: "#D97706", primitive: "cylinder" },
     { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube", isAdultEquipment: true },
     { id: 13, key: "tobogan", name: "Tobogán", icon2D: "Iconos 2D/tobogan.png", color: "#EA580C", primitive: "cone" },
-    { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/casa.png", color: "#6B7280", primitive: "cube" },
+    { id: "cama", layerId: 14, key: "cama", name: "Camas elásticas", icon2D: "Iconos 2D/CamaElastica.png", color: "#DB2777", primitive: "cylinder", tipoWhere: "UPPER(ELEMENTO) LIKE '%CAMA%'" },
+    { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/casa.png", color: "#6B7280", primitive: "cube", tipoWhere: "ELEMENTO IS NULL OR UPPER(ELEMENTO) NOT LIKE '%CAMA%'" },
     { id: 16, key: "compactos", name: "Multijuego / Compactos", icon2D: "Iconos 2D/Multijuego.png", color: "#E11D48", primitive: "cube" },
     { id: 17, key: "elemento", name: "Elemento de juego", icon2D: "Iconos 2D/Elemento_juego.png", color: "#0D9488", primitive: "sphere" },
     { id: 18, key: "red", name: "Red de trepa", icon2D: "Iconos 2D/Red.png", color: "#4F46E5", primitive: "cone" },
@@ -164,6 +168,7 @@ require([
     { values: ["Loseta caucho"], file: "loseta-caucho.png", color: [92, 68, 66], label: "Loseta de caucho", pattern: "cross" },
     { values: ["Loseta caucho y C continuo", "Loseta caucho y C. continuo"], file: "loseta-mixto.png", color: [128, 78, 70], label: "Loseta y caucho continuo", pattern: "diagonal-cross" },
     { values: ["Corcho"], file: "corcho.png", color: [176, 132, 76], label: "Corcho", pattern: "horizontal" },
+    { values: ["Garbancillo"], file: "garbancillo.jpg", color: [196, 168, 118], label: "Garbancillo", pattern: "diagonal-cross" },
     { values: ["-"], file: "suelo-default.png", color: [88, 140, 92], label: "Sin tipo de suelo", pattern: "solid" },
     { values: ["PISCINA"], file: "piscina.png", color: [43, 164, 217], label: "Piscina", pattern: "vertical" }
   ];
@@ -179,6 +184,12 @@ require([
 
   function getPolygonWhere(config) {
     return (config && config.tipoWhere) || AREA_INFANTIL_WHERE;
+  }
+
+  function getLayerBaseWhere(config) {
+    if (config && config.tipoWhere) return config.tipoWhere;
+    if (config && config.isPolygon) return AREA_INFANTIL_WHERE;
+    return "1=1";
   }
 
   function getOverviewIcon(config) {
@@ -257,6 +268,7 @@ require([
       if (s == 'Loseta caucho') return 'Loseta de caucho';
       if (s == 'Loseta caucho y C continuo' || s == 'Loseta caucho y C. continuo') return 'Loseta y caucho continuo';
       if (s == 'Corcho') return 'Corcho';
+      if (s == 'Garbancillo') return 'Garbancillo';
       if (s == '-' || s == '') return '';
       return s;
     `;
@@ -335,6 +347,7 @@ require([
     USO: "Uso",
     TIPOSUELO: "Tipo de suelo",
     TIPO_DE_SUELO: "Tipo de suelo",
+    FUENTE: "Fuente",
     EDAD: "Edad recomendada",
     EDAD_G: "Edad recomendada",
     UBICACION: "Ubicación",
@@ -370,6 +383,66 @@ require([
     if (input.graphic) return input.graphic;
     if (input.attributes) return input;
     return null;
+  }
+
+  let fuentesLayerPromise = null;
+
+  function getFuentesLayer() {
+    if (fuentesLayerPromise) return fuentesLayerPromise;
+    fuentesLayerPromise = (async function loadFuentesLayer() {
+      const layer = new FeatureLayer({
+        url: FUENTES_LAYER_URL,
+        outFields: ["*"],
+        popupEnabled: false
+      });
+      await layer.load();
+      return layer;
+    })().catch((err) => {
+      fuentesLayerPromise = null;
+      console.warn("Capa fuentes:", err && err.message ? err.message : err);
+      throw err;
+    });
+    return fuentesLayerPromise;
+  }
+
+  function formatFuentePopupValue(info, storedValue) {
+    if (info && info.found) {
+      const meters = Number.isFinite(info.meters) ? Math.round(info.meters) : null;
+      return meters != null ? `SI (${meters} m)` : "SI";
+    }
+    if (info && info.queried) return "NO";
+    if (popupHasValue(storedValue)) return String(storedValue).trim();
+    return "NO";
+  }
+
+  async function queryNearestFuente(graphic) {
+    if (!graphic || !graphic.geometry) return { queried: false, found: false };
+    try {
+      const layer = await getFuentesLayer();
+      const result = await layer.queryFeatures({
+        geometry: graphic.geometry,
+        distance: FUENTE_RADIUS_M,
+        units: "meters",
+        spatialRelationship: "intersects",
+        returnGeometry: true,
+        outFields: ["*"],
+        num: 50
+      });
+      const features = (result && result.features) || [];
+      if (!features.length) return { queried: true, found: false };
+
+      let best = Infinity;
+      features.forEach((feature) => {
+        if (!feature.geometry) return;
+        const dist = geometryEngine.distance(graphic.geometry, feature.geometry, "meters");
+        if (Number.isFinite(dist) && dist < best) best = dist;
+      });
+      if (!Number.isFinite(best) || best > FUENTE_RADIUS_M) return { queried: true, found: false };
+      return { queried: true, found: true, meters: best };
+    } catch (err) {
+      console.warn("Consulta fuentes:", err && err.message ? err.message : err);
+      return { queried: false, found: false };
+    }
   }
 
   function getPlayPopupTitle(attrs, layerConfig) {
@@ -416,27 +489,39 @@ require([
               }
 
               const navUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-              let rowsHtml = "";
-              citizenFields.forEach((fieldName) => {
-                const val = attrs[fieldName];
-                if (!popupHasValue(val)) return;
-                if (popupSameText(val, heading)) return;
-                const label = POPUP_FIELD_LABELS[fieldName] || fieldName;
-                if (shownLabels[label]) return;
-                shownLabels[label] = true;
-                rowsHtml += `<div class="popup-detail-row"><strong>${escapeHtml(label)}:</strong> <span>${escapeHtml(val)}</span></div>`;
-              });
 
-              const container = document.createElement("div");
-              container.className = "popup-custom-card";
-              container.innerHTML = `
-                <div class="popup-lead">${escapeHtml(heading)}</div>
-                <div class="popup-details-list">${rowsHtml}</div>
-                <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route">
-                  <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
-                </a>
-              `;
-              return container;
+              const buildCard = function(fuenteInfo) {
+                let rowsHtml = "";
+                citizenFields.forEach((fieldName) => {
+                  const val = attrs[fieldName];
+                  if (!popupHasValue(val)) return;
+                  if (popupSameText(val, heading)) return;
+                  const label = POPUP_FIELD_LABELS[fieldName] || fieldName;
+                  if (shownLabels[label]) return;
+                  shownLabels[label] = true;
+                  rowsHtml += `<div class="popup-detail-row"><strong>${escapeHtml(label)}:</strong> <span>${escapeHtml(val)}</span></div>`;
+                });
+
+                if (layerConfig.isPolygon && !shownLabels.Fuente) {
+                  const fuenteVal = formatFuentePopupValue(fuenteInfo, attrs.FUENTE);
+                  shownLabels.Fuente = true;
+                  rowsHtml += `<div class="popup-detail-row"><strong>Fuente:</strong> <span>${escapeHtml(fuenteVal)}</span></div>`;
+                }
+
+                const container = document.createElement("div");
+                container.className = "popup-custom-card";
+                container.innerHTML = `
+                  <div class="popup-lead">${escapeHtml(heading)}</div>
+                  <div class="popup-details-list">${rowsHtml}</div>
+                  <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route">
+                    <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
+                  </a>
+                `;
+                return container;
+              };
+
+              if (!layerConfig.isPolygon) return buildCard(null);
+              return queryNearestFuente(graphic).then(buildCard);
             }
           },
           {
@@ -709,7 +794,7 @@ require([
 
     sortedConfigs.forEach(cfg => {
       const url = `${SERVER_URL}/${getConfigLayerId(cfg)}`;
-      const infantWhere = cfg.isPolygon ? getPolygonWhere(cfg) : "1=1";
+      const infantWhere = getLayerBaseWhere(cfg);
       
       const layer2D = new FeatureLayer({
         url: url,
@@ -1103,7 +1188,8 @@ require([
   }
 
   function buildAttributeWhereClauses(item) {
-    if (item.config.isPolygon) return [getPolygonWhere(item.config)];
+    const baseWhere = getLayerBaseWhere(item.config);
+    if (item.config.isPolygon) return [baseWhere];
 
     const availableFields = item.fields || [];
     const hasEdad = availableFields.includes("EDAD") || availableFields.includes("EDAD_G");
@@ -1113,6 +1199,7 @@ require([
     if (activeAgeFilter && !hasEdad && !skipAgeConstraint) return null;
 
     const whereClauses = [];
+    if (baseWhere && baseWhere !== "1=1") whereClauses.push(baseWhere);
 
     if (activeAgeFilter && hasEdad && !skipAgeConstraint) {
       const ageClause = buildAgeWhereClause(availableFields);
@@ -1194,7 +1281,7 @@ require([
     for (const item of activeLayers2D) {
       const countBadge = document.getElementById(`count-${item.config.id}`);
       try {
-        const where = item.config.isPolygon ? getPolygonWhere(item.config) : "1=1";
+        const where = getLayerBaseWhere(item.config);
         const count = await item.layer.queryFeatureCount({ where });
         if (countBadge) countBadge.textContent = count;
         if (selectedCfg && item.config.id === selectedCfg.id) selectedCount = count;
