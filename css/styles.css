@@ -1654,20 +1654,20 @@ html.show-welcome .welcome-overlay:not(.report-overlay) {
   .esri-popup--is-docked-bottom-center {
     top: auto !important;
     bottom: 0 !important;
-    margin-top: 72px !important;
+    margin-top: 112px !important;
   }
 
   .esri-popup__main-container {
     pointer-events: auto !important;
     width: min(100%, 460px) !important;
     max-width: calc(100vw - 16px) !important;
-    max-height: calc(100dvh - 168px) !important;
+    max-height: calc(100dvh - 216px) !important;
     overflow: hidden !important;
   }
 
   /* Un solo scroll, el que ya usa ArcGIS para el contenido. */
   .esri-popup .esri-features__content-container {
-    max-height: calc(100dvh - 230px) !important;
+    max-height: calc(100dvh - 278px) !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
