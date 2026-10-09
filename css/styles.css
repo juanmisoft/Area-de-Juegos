@@ -1149,13 +1149,15 @@ input:checked + .slider:before {
 .esri-popup.esri-widget,
 .esri-ui .esri-popup {
   z-index: 120 !important;
-  pointer-events: auto !important;
+  /* El contenedor de ArcGIS puede ocupar toda la vista; los toques deben pasar al mapa. */
+  pointer-events: none !important;
+  height: auto !important;
 }
 
 .esri-popup--is-docked-bottom-center {
   bottom: 12px !important;
   top: auto !important;
-  pointer-events: auto !important;
+  pointer-events: none !important;
 }
 
 .esri-popup--is-docked .esri-popup__main-container {
@@ -1655,10 +1657,12 @@ html.show-welcome .welcome-overlay:not(.report-overlay) {
     top: auto !important;
     width: 100% !important;
     max-width: 100vw !important;
+    height: auto !important;
+    max-height: none !important;
     margin: 0 !important;
     transform: none !important;
     z-index: 200 !important;
-    pointer-events: auto !important;
+    pointer-events: none !important;
   }
 
   body.popup-visible .map-floating-controls,
@@ -1677,6 +1681,11 @@ html.show-welcome .welcome-overlay:not(.report-overlay) {
 
   body.popup-visible .esri-popup {
     visibility: visible !important;
+    pointer-events: none !important;
+  }
+
+  body.popup-visible .esri-popup__main-container,
+  body.popup-visible .esri-popup__main-container * {
     pointer-events: auto !important;
   }
 

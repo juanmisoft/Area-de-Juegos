@@ -2068,8 +2068,11 @@ require([
     popup.style.setProperty("margin", "0", "important");
     popup.style.setProperty("transform", "none", "important");
     popup.style.setProperty("z-index", "200", "important");
-    popup.style.setProperty("pointer-events", "auto", "important");
+    popup.style.setProperty("height", "auto", "important");
+    popup.style.setProperty("max-height", "none", "important");
+    popup.style.setProperty("pointer-events", "none", "important");
 
+    main.style.setProperty("pointer-events", "auto", "important");
     main.style.setProperty("width", "100%", "important");
     main.style.setProperty("max-width", "100%", "important");
     main.style.setProperty("max-height", maxMain + "px", "important");
