@@ -2037,25 +2037,43 @@ require([
   }
 
   function constrainPopupScroll() {
-    const popup = document.querySelector(".esri-popup--is-docked");
+    const popup = document.querySelector(".esri-popup--is-docked, .esri-popup");
     const main = document.querySelector(".esri-popup__main-container");
     if (!popup || !main) return;
 
+    const mobile = isMobileLayout();
     const maxMain = Math.round(Math.min(
-      window.innerHeight * (isMobileLayout() ? 0.58 : 0.7),
-      isMobileLayout() ? 480 : 640
+      window.innerHeight * (mobile ? 0.62 : 0.7),
+      mobile ? 520 : 640
     ));
+    const minMain = mobile
+      ? Math.round(Math.min(window.innerHeight * 0.48, 360))
+      : 200;
+
+    popup.style.setProperty("z-index", "200", "important");
+    popup.style.setProperty("pointer-events", "auto", "important");
+    popup.style.setProperty("visibility", "visible", "important");
+    popup.style.setProperty("opacity", "1", "important");
+
     main.style.setProperty("max-height", maxMain + "px", "important");
-    main.style.setProperty("height", "auto", "important");
+    main.style.setProperty("min-height", minMain + "px", "important");
+    main.style.setProperty("height", mobile ? maxMain + "px" : "auto", "important");
     main.style.setProperty("overflow", "hidden", "important");
     main.style.setProperty("display", "flex", "important");
     main.style.setProperty("flex-direction", "column", "important");
+    main.style.setProperty("pointer-events", "auto", "important");
+    main.style.setProperty("visibility", "visible", "important");
 
-    if (isMobileLayout()) {
+    if (mobile) {
+      popup.style.setProperty("position", "fixed", "important");
       popup.style.setProperty("bottom", "0px", "important");
       popup.style.setProperty("top", "auto", "important");
       popup.style.setProperty("left", "0px", "important");
       popup.style.setProperty("right", "0px", "important");
+      popup.style.setProperty("width", "100%", "important");
+      popup.style.setProperty("max-width", "100vw", "important");
+      popup.style.setProperty("margin", "0", "important");
+      popup.style.setProperty("transform", "none", "important");
       main.style.setProperty("width", "100%", "important");
       main.style.setProperty("max-width", "100%", "important");
       main.style.setProperty("border-radius", "16px 16px 0 0", "important");
@@ -2065,7 +2083,8 @@ require([
     if (features) {
       features.style.setProperty("flex", "1 1 auto", "important");
       features.style.setProperty("min-height", "0", "important");
-      features.style.setProperty("max-height", "100%", "important");
+      features.style.setProperty("height", "auto", "important");
+      features.style.setProperty("max-height", "none", "important");
       features.style.setProperty("overflow", "hidden", "important");
       features.style.setProperty("display", "flex", "important");
       features.style.setProperty("flex-direction", "column", "important");
@@ -2074,19 +2093,41 @@ require([
     const flowItem = main.querySelector("calcite-flow-item");
     if (flowItem) {
       try { flowItem.collapsible = false; } catch (e) {}
-      flowItem.style.setProperty("flex", "1 1 auto", "important");
-      flowItem.style.setProperty("min-height", "0", "important");
-      flowItem.style.setProperty("max-height", "100%", "important");
-      flowItem.style.setProperty("overflow", "hidden", "important");
+      flowItem.style.setProperty("display", "block", "important");
+      flowItem.style.setProperty("height", "auto", "important");
+      flowItem.style.setProperty("max-height", "none", "important");
+      flowItem.style.setProperty("overflow", "visible", "important");
+    }
+
+    const header = main.querySelector(".esri-popup__header");
+    if (header) {
+      header.style.setProperty("flex", "0 0 auto", "important");
+      header.style.setProperty("min-height", "44px", "important");
+      header.style.setProperty("position", "relative", "important");
+      header.style.setProperty("z-index", "8", "important");
+    }
+
+    const closeBtn = main.querySelector(
+      ".esri-popup__button[title='Cerrar'], .esri-popup__button[title='Close'], .esri-popup__button--close"
+    );
+    if (closeBtn) {
+      closeBtn.style.setProperty("position", "absolute", "important");
+      closeBtn.style.setProperty("top", "6px", "important");
+      closeBtn.style.setProperty("right", "6px", "important");
+      closeBtn.style.setProperty("z-index", "12", "important");
+      closeBtn.style.setProperty("pointer-events", "auto", "important");
+      closeBtn.style.setProperty("width", "40px", "important");
+      closeBtn.style.setProperty("height", "40px", "important");
     }
 
     const heading = main.querySelector(".esri-features__heading, h2.esri-widget__heading");
     const actionBar = main.querySelector("calcite-action-bar");
-    const used = (heading ? heading.getBoundingClientRect().height : 36)
+    const used = (header ? header.getBoundingClientRect().height : 44)
+      + (heading ? heading.getBoundingClientRect().height : 0)
       + (actionBar ? actionBar.getBoundingClientRect().height : 0)
-      + (isMobileLayout() ? 20 : 28);
-    const mainH = Math.min(main.getBoundingClientRect().height || maxMain, maxMain);
-    const maxScroll = Math.max(140, Math.round(mainH - used));
+      + (mobile ? 24 : 28);
+    const mainH = Math.max(minMain, Math.min(main.getBoundingClientRect().height || maxMain, maxMain));
+    const maxScroll = Math.max(180, Math.round(mainH - used));
 
     const scrollers = main.querySelectorAll(
       ".esri-features__content-container, .esri-features__container, .esri-feature, .esri-feature__content-node"
