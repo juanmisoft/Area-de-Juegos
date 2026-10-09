@@ -473,12 +473,12 @@ require([
     return GAME_LAYERS_CONFIG.filter((cfg) => !cfg.isPolygon);
   }
 
-  function absoluteAssetUrl(path) {
-    try {
-      return new URL(path, window.location.href).href;
-    } catch (e) {
-      return path;
-    }
+  function formatFuenteShareValue(fuenteInfo, storedValue) {
+    if (fuenteInfo && fuenteInfo.found) return "SI";
+    if (fuenteInfo && fuenteInfo.queried) return "NO";
+    const raw = popupHasValue(storedValue) ? String(storedValue).trim().toUpperCase() : "";
+    if (raw === "SI" || raw === "S" || raw === "YES" || raw === "1" || raw.indexOf("SI") === 0) return "SI";
+    return "NO";
   }
 
   async function countElementsInsideArea(geometry) {
@@ -512,35 +512,17 @@ require([
       const items = await countElementsInsideArea(graphic.geometry);
       if (items.length) {
         lines.push("");
-        lines.push("Elementos del área:");
         items
           .sort((a, b) => a.cfg.name.localeCompare(b.cfg.name, "es"))
           .forEach(({ cfg, count }) => {
-            // Texto + URL del icono (algunas apps lo muestran; en el resto queda el nombre y cantidad)
-            lines.push(`• ${cfg.name}: ${count}`);
-            lines.push(`  Icono: ${absoluteAssetUrl(cfg.icon2D)}`);
+            lines.push(`${cfg.name}: ${count}`);
           });
-      } else {
-        lines.push("");
-        lines.push("Elementos del área: sin elementos inventariados dentro del área.");
       }
-    } else if (!layerConfig.isPolygon) {
-      lines.push("Elemento: " + layerConfig.name);
-    }
-
-    const edad = attrs.EDAD || attrs.EDAD_G;
-    if (popupHasValue(edad)) {
-      lines.push("");
-      lines.push("Edad recomendada: " + String(edad).trim());
     }
 
     if (layerConfig.isPolygon) {
-      lines.push("Fuente: " + formatFuentePopupValue(fuenteInfo, attrs.FUENTE));
-    }
-
-    if (Number.isFinite(lat) && Number.isFinite(lon)) {
       lines.push("");
-      lines.push("Cómo llegar: " + getMapsUrl(lat, lon));
+      lines.push("Fuente: " + formatFuenteShareValue(fuenteInfo, attrs.FUENTE));
     }
 
     return {
