@@ -454,19 +454,34 @@ require([
   }
 
   function buildAppSharePayload() {
-    const selectedCfg = GAME_LAYERS_CONFIG.find(cfg => cfg.id === getSelectedGameId()) || null;
-    const legendName = (document.getElementById("headerLegendName") || {}).textContent || "Áreas de juego";
-    const legendCount = (document.getElementById("headerLegendCount") || {}).textContent || "";
-    const lines = [
-      "Mapa de Áreas de juego — Ayuntamiento de Rivas Vaciamadrid",
-      selectedCfg ? `Vista: ${legendName}${legendCount ? " (" + legendCount + ")" : ""}` : null,
-      "Consulte parques infantiles, elementos de juego y zonas de ejercicio."
-    ].filter(Boolean);
     return {
-      title: "Áreas de juego | Rivas Vaciamadrid",
-      text: lines.join("\n"),
+      title: "Áreas de juego",
+      text: "Áreas de juego — Ayuntamiento de Rivas Vaciamadrid",
       url: getAppShareUrl()
     };
+  }
+
+  const areaPolygonStore = new Map();
+
+  function areaStoreKey(cfgId, oid) {
+    return String(cfgId) + ":" + String(oid);
+  }
+
+  function rememberAreaPolygon(cfg, feature) {
+    if (!cfg || !feature || !feature.geometry || !feature.attributes) return;
+    const oid = feature.attributes.OBJECTID;
+    if (oid === undefined || oid === null) return;
+    areaPolygonStore.set(areaStoreKey(cfg.id, oid), feature.geometry);
+  }
+
+  function resolveAreaGeometry(graphic, layerConfig) {
+    if (!graphic || !graphic.geometry) return null;
+    if (!layerConfig || !layerConfig.isPolygon || graphic.geometry.type !== "point") {
+      return graphic.geometry;
+    }
+    const attrs = graphic.attributes || {};
+    const oid = attrs.SOURCE_OID != null ? attrs.SOURCE_OID : attrs.OBJECTID;
+    return areaPolygonStore.get(areaStoreKey(layerConfig.id, oid)) || graphic.geometry;
   }
 
   function getElementConfigsForShare() {
@@ -758,19 +773,45 @@ require([
     return layerConfig.name;
   }
 
-  function applyPlayPopupTemplate(layer, layerConfig) {
+  async function appendAreaPhotos(container, layerConfig, sourceOid) {
+    if (!container || !layerConfig || sourceOid == null) return;
+    try {
+      const layer = new FeatureLayer({
+        url: `${SERVER_URL}/${getConfigLayerId(layerConfig)}`,
+        outFields: ["OBJECTID"]
+      });
+      const oid = Number(sourceOid);
+      const result = await layer.queryAttachments({ objectIds: [oid] });
+      const infos = (result && (result[oid] || result[sourceOid])) || [];
+      if (!infos.length) return;
+      const wrap = document.createElement("div");
+      wrap.className = "popup-area-photos";
+      infos.forEach((info) => {
+        if (!info || !info.url) return;
+        const img = document.createElement("img");
+        img.src = info.url;
+        img.alt = info.name || "Foto del área";
+        wrap.appendChild(img);
+      });
+      if (wrap.childNodes.length) container.appendChild(wrap);
+    } catch (err) {
+      console.warn("Fotos del área:", err);
+    }
+  }
+
+  function applyPlayPopupTemplate(layer, layerConfig, options) {
     if (!layer) return;
+    const clientOverview = !!(options && options.clientOverview);
     try {
       layer.popupEnabled = true;
-      layer.popupTemplate = {
-        title: layerConfig.name,
-        lastEditInfoEnabled: false,
-        content: [
+      const content = [
           {
             type: "custom",
             creator: function(input) {
               const graphic = getPopupGraphic(input);
               const attrs = graphic ? (graphic.attributes || {}) : {};
+              const areaGeometry = resolveAreaGeometry(graphic, layerConfig) || (graphic && graphic.geometry);
+              const areaGraphic = graphic ? { geometry: areaGeometry, attributes: attrs } : graphic;
               const heading = getPlayPopupTitle(attrs, layerConfig);
               const shownLabels = {};
               const citizenFields = layerConfig.isPolygon
@@ -779,12 +820,11 @@ require([
 
               let lat = 40.352;
               let lon = -3.528;
-              if (graphic && graphic.geometry) {
-                if (graphic.geometry.type === "point") {
-                  lat = graphic.geometry.latitude || lat;
-                  lon = graphic.geometry.longitude || lon;
-                } else if (graphic.geometry.extent) {
-                  const center = graphic.geometry.extent.center;
+              if (areaGeometry) {
+                const center = areaGeometry.type === "point"
+                  ? areaGeometry
+                  : (areaGeometry.centroid || (areaGeometry.extent && areaGeometry.extent.center));
+                if (center) {
                   lat = center.latitude || lat;
                   lon = center.longitude || lon;
                 }
@@ -810,15 +850,7 @@ require([
                   rowsHtml += `<div class="popup-detail-row"><strong>Fuente:</strong> <span>${escapeHtml(fuenteVal)}</span></div>`;
                 }
 
-                lastSharePayload = buildFeatureSharePayload(
-                  attrs,
-                  layerConfig,
-                  heading,
-                  lat,
-                  lon,
-                  fuenteInfo
-                );
-                if (layerConfig.isPolygon && graphic) {
+                if (layerConfig.isPolygon && areaGraphic) {
                   buildAreaSharePayload(
                     attrs,
                     layerConfig,
@@ -826,7 +858,7 @@ require([
                     lat,
                     lon,
                     fuenteInfo,
-                    graphic
+                    areaGraphic
                   ).then((payload) => {
                     lastSharePayload = payload;
                   }).catch(() => {});
@@ -834,13 +866,16 @@ require([
 
                 const container = document.createElement("div");
                 container.className = "popup-custom-card";
+                const shareButton = layerConfig.isPolygon
+                  ? `<button type="button" class="btn-share popup-btn-share">
+                      <i class="fa-solid fa-share-nodes"></i> Compartir
+                    </button>`
+                  : "";
                 container.innerHTML = `
                   <div class="popup-lead">${escapeHtml(heading)}</div>
                   <div class="popup-details-list">${rowsHtml}</div>
                   <div class="popup-actions">
-                    <button type="button" class="btn-share popup-btn-share">
-                      <i class="fa-solid fa-share-nodes"></i> Compartir
-                    </button>
+                    ${shareButton}
                     <a href="${navUrl}" target="_blank" rel="noopener" class="btn-route popup-btn-route">
                       <i class="fa-solid fa-diamond-turn-right"></i> Cómo llegar (GPS Navegador)
                     </a>
@@ -855,24 +890,15 @@ require([
                     shareBtn.disabled = true;
                     shareBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparando...';
                     try {
-                      const payload = layerConfig.isPolygon
-                        ? await buildAreaSharePayload(
-                          attrs,
-                          layerConfig,
-                          heading,
-                          lat,
-                          lon,
-                          fuenteInfo,
-                          graphic
-                        )
-                        : buildFeatureSharePayload(
-                          attrs,
-                          layerConfig,
-                          heading,
-                          lat,
-                          lon,
-                          fuenteInfo
-                        );
+                      const payload = await buildAreaSharePayload(
+                        attrs,
+                        layerConfig,
+                        heading,
+                        lat,
+                        lon,
+                        fuenteInfo,
+                        areaGraphic
+                      );
                       lastSharePayload = payload;
                       await sharePayload(payload);
                     } catch (err) {
@@ -884,18 +910,28 @@ require([
                     }
                   });
                 }
+                if (clientOverview && layerConfig.isPolygon) {
+                  const sourceOid = attrs.SOURCE_OID != null ? attrs.SOURCE_OID : attrs.OBJECTID;
+                  appendAreaPhotos(container, layerConfig, sourceOid);
+                }
                 return container;
               };
 
               if (!layerConfig.isPolygon) return buildCard(null);
-              return queryNearestFuente(graphic).then(buildCard);
+              return queryNearestFuente(areaGraphic).then(buildCard);
             }
-          },
-          {
-            type: "attachments",
-            displayType: "preview"
           }
-        ]
+      ];
+      if (!clientOverview) {
+        content.push({
+          type: "attachments",
+          displayType: "preview"
+        });
+      }
+      layer.popupTemplate = {
+        title: layerConfig.name,
+        lastEditInfoEnabled: false,
+        content
       };
     } catch (err) {
       console.warn("No se pudo aplicar el popup:", layerConfig && layerConfig.name, err);
@@ -1083,6 +1119,7 @@ require([
       spatialReference: { wkid: 25830 },
       fields: [
         { name: "OBJECTID", type: "oid" },
+        { name: "SOURCE_OID", type: "integer" },
         { name: "NOMBRE", type: "string", length: 255 },
         { name: "TIPO", type: "string", length: 100 },
         { name: "TIPOSUELO", type: "string", length: 100 },
@@ -1130,13 +1167,16 @@ require([
       const center = feature.geometry.centroid
         || (feature.geometry.extent && feature.geometry.extent.center);
       if (!center) return;
+      rememberAreaPolygon(cfg, feature);
+      const attrs = Object.assign({}, feature.attributes || {});
+      attrs.SOURCE_OID = attrs.OBJECTID;
       graphics.push(new Graphic({
         geometry: new Point({
           x: center.x,
           y: center.y,
           spatialReference: feature.geometry.spatialReference
         }),
-        attributes: feature.attributes || {}
+        attributes: attrs
       }));
     });
 
@@ -1340,13 +1380,13 @@ require([
         map2D.add(overview2D);
         map3D.add(overview3D);
         overview2D.when(() => {
-          applyPlayPopupTemplate(overview2D, cfg);
+          applyPlayPopupTemplate(overview2D, cfg, { clientOverview: true });
           populateAreaOverviewLayer(overview2D, cfg).catch((err) => {
             console.warn("Vista general 2D:", err);
           });
         });
         overview3D.when(() => {
-          applyPlayPopupTemplate(overview3D, cfg);
+          applyPlayPopupTemplate(overview3D, cfg, { clientOverview: true });
           populateAreaOverviewLayer(overview3D, cfg).catch((err) => {
             console.warn("Vista general 3D:", err);
           });
@@ -1854,17 +1894,14 @@ require([
       const attrs = graphic.attributes || {};
       const clusterCount = Number(attrs.cluster_count);
       const isCluster = !!(graphic.isAggregate || (Number.isFinite(clusterCount) && clusterCount > 1));
-      if (isCluster) {
-        const target = evt.mapPoint || graphic.geometry;
-        const nextScale = Math.max(
-          Math.round(view.scale * 0.55),
-          Math.round(perfProfile.areaIconMaxScale * 2.4)
-        );
-        await view.goTo({ target, scale: nextScale }, { duration: 450 });
-        return;
-      }
+      if (!isCluster) return;
 
-      await zoomViewToZoneGraphic(view, graphic);
+      const target = evt.mapPoint || graphic.geometry;
+      const nextScale = Math.max(
+        Math.round(view.scale * 0.55),
+        Math.round(perfProfile.areaIconMaxScale * 2.4)
+      );
+      await view.goTo({ target, scale: nextScale }, { duration: 450 });
     } catch (err) {
       console.warn("Zoom a zona:", err);
     }
@@ -2007,16 +2044,7 @@ require([
   }
 
   function syncPopupOverlays(view) {
-    let open = false;
-    try {
-      const popup = view && view.popup;
-      const featureCount = popup && popup.features ? popup.features.length : 0;
-      open = !!(popup && (popup.visible || popup.selectedFeature || featureCount > 0));
-    } catch (e) {}
-    if (!open) {
-      const el = document.querySelector(".esri-popup");
-      open = !!(el && !el.classList.contains("esri-hidden") && el.querySelector(".esri-popup__main-container"));
-    }
+    const open = !!(view && view.popup && view.popup.visible);
     document.body.classList.toggle("popup-visible", open);
     if (!view || !isMobileLayout()) return;
     const sheet = document.getElementById("nearMeSheet");
@@ -2471,8 +2499,7 @@ require([
     const shareBtn = document.getElementById("btnShare");
     if (!shareBtn) return;
     shareBtn.addEventListener("click", () => {
-      const popupOpen = document.body.classList.contains("popup-visible");
-      sharePayload(popupOpen && lastSharePayload ? lastSharePayload : buildAppSharePayload());
+      sharePayload(buildAppSharePayload());
     });
   }
 

@@ -1261,6 +1261,16 @@ calcite-flow-item.esri-features__content-feature,
   font-size: 0.88rem;
 }
 
+.popup-area-photos img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin-top: 8px;
+  border-radius: 8px;
+  background: #F8FAFC;
+}
+
 .esri-popup__header-title {
   font-weight: 700 !important;
   color: var(--primary) !important;
