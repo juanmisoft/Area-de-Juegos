@@ -2024,133 +2024,9 @@ require([
     queryNearMeResults(circleGeometry, mapPoint);
   }
 
-  function isEsriPopupOpen() {
-    const el = document.querySelector(".esri-popup");
-    if (!el || el.classList.contains("esri-hidden")) return false;
-    const style = window.getComputedStyle(el);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
-      return false;
-    }
-    const main = el.querySelector(".esri-popup__main-container");
-    const height = Math.max(el.clientHeight || 0, main ? main.clientHeight : 0);
-    return height > 8;
-  }
-
-  function constrainPopupScroll() {
-    const popup = document.querySelector(".esri-popup--is-docked, .esri-popup");
-    const main = document.querySelector(".esri-popup__main-container");
-    if (!popup || !main) return;
-
-    // Escritorio: sin forzar scrolls; el popup crece con el contenido.
-    if (!isMobileLayout()) {
-      main.style.removeProperty("height");
-      main.style.setProperty("max-height", Math.round(Math.min(window.innerHeight * 0.85, 780)) + "px", "important");
-      main.style.setProperty("overflow", "visible", "important");
-      main.querySelectorAll(
-        ".esri-features, .esri-features__content-container, .esri-features__container, .esri-feature, .esri-feature__content-node, .esri-popup__content, .esri-attachments, .esri-attachments__container"
-      ).forEach((el) => {
-        el.style.setProperty("overflow", "visible", "important");
-        el.style.setProperty("max-height", "none", "important");
-        el.style.setProperty("height", "auto", "important");
-      });
-      return;
-    }
-
-    const maxMain = Math.round(Math.min(window.innerHeight * 0.82, 720));
-
-    popup.style.setProperty("position", "fixed", "important");
-    popup.style.setProperty("bottom", "0px", "important");
-    popup.style.setProperty("top", "auto", "important");
-    popup.style.setProperty("left", "0px", "important");
-    popup.style.setProperty("right", "0px", "important");
-    popup.style.setProperty("width", "100%", "important");
-    popup.style.setProperty("max-width", "100vw", "important");
-    popup.style.setProperty("margin", "0", "important");
-    popup.style.setProperty("transform", "none", "important");
-    popup.style.setProperty("z-index", "200", "important");
-    popup.style.setProperty("height", "auto", "important");
-    popup.style.setProperty("max-height", "none", "important");
-    popup.style.setProperty("pointer-events", "none", "important");
-
-    main.style.setProperty("pointer-events", "auto", "important");
-    main.style.setProperty("width", "100%", "important");
-    main.style.setProperty("max-width", "100%", "important");
-    main.style.setProperty("max-height", maxMain + "px", "important");
-    main.style.setProperty("height", "auto", "important");
-    main.style.setProperty("min-height", "0", "important");
-    main.style.setProperty("overflow", "hidden", "important");
-    main.style.setProperty("display", "flex", "important");
-    main.style.setProperty("flex-direction", "column", "important");
-    main.style.setProperty("border-radius", "16px 16px 0 0", "important");
-
-    const features = main.querySelector(".esri-features");
-    if (features) {
-      features.style.setProperty("flex", "1 1 auto", "important");
-      features.style.setProperty("min-height", "0", "important");
-      features.style.setProperty("height", "auto", "important");
-      features.style.setProperty("max-height", "none", "important");
-      features.style.setProperty("overflow", "hidden", "important");
-      features.style.setProperty("display", "flex", "important");
-      features.style.setProperty("flex-direction", "column", "important");
-    }
-
-    const flowItem = main.querySelector("calcite-flow-item");
-    if (flowItem) {
-      try { flowItem.collapsible = false; } catch (e) {}
-      flowItem.style.setProperty("overflow", "visible", "important");
-      flowItem.style.setProperty("max-height", "none", "important");
-      flowItem.style.setProperty("height", "auto", "important");
-    }
-
-    // Un solo scroll: content-container. El resto, overflow visible.
-    const nested = main.querySelectorAll(
-      ".esri-features__container, .esri-feature-pagination, .esri-feature, .esri-feature__content-node, .esri-popup__content, .esri-popup__body, .esri-attachments, .esri-attachments__container, .esri-attachments__list, .esri-attachments__items, .esri-attachments__item, .esri-attachments__item-mask"
-    );
-    nested.forEach((el) => {
-      el.style.setProperty("overflow", "visible", "important");
-      el.style.setProperty("max-height", "none", "important");
-      el.style.setProperty("height", "auto", "important");
-    });
-
-    const scroller = main.querySelector(".esri-features__content-container")
-      || main.querySelector(".esri-features__container")
-      || main.querySelector(".esri-feature");
-    if (scroller) {
-      scroller.style.setProperty("flex", "1 1 auto", "important");
-      scroller.style.setProperty("min-height", "0", "important");
-      scroller.style.setProperty("max-height", "none", "important");
-      scroller.style.setProperty("height", "auto", "important");
-      scroller.style.setProperty("overflow-x", "hidden", "important");
-      scroller.style.setProperty("overflow-y", "auto", "important");
-      scroller.style.setProperty("-webkit-overflow-scrolling", "touch", "important");
-    }
-
-    main.querySelectorAll("img").forEach((img) => {
-      img.style.setProperty("max-height", "none", "important");
-      img.style.setProperty("height", "auto", "important");
-      if (img.dataset.rivasScrollBound) return;
-      img.dataset.rivasScrollBound = "1";
-      img.addEventListener("load", () => constrainPopupScroll(), { once: true });
-    });
-  }
-
   function syncPopupOverlays(view) {
-    const open = isEsriPopupOpen();
+    const open = !!(view && view.popup && view.popup.visible);
     document.body.classList.toggle("popup-visible", open);
-    if (view && view.popup) {
-      view.popup.dockOptions = {
-        buttonEnabled: false,
-        breakpoint: false,
-        position: "bottom-center"
-      };
-    }
-    if (open) {
-      constrainPopupScroll();
-      requestAnimationFrame(constrainPopupScroll);
-      setTimeout(constrainPopupScroll, 120);
-      setTimeout(constrainPopupScroll, 450);
-      setTimeout(constrainPopupScroll, 1200);
-    }
     if (!view || !isMobileLayout()) return;
     const sheet = document.getElementById("nearMeSheet");
     if (open && sheet && !sheet.hidden && sheet.classList.contains("open") && !sheet.classList.contains("minimized")) {
@@ -2162,23 +2038,7 @@ require([
     if (!view || !view.popup || view.__rivasPopupBound) return;
     view.__rivasPopupBound = true;
     const sync = () => syncPopupOverlays(view);
-    ["visible", "features", "selectedFeature"].forEach((prop) => {
-      try { view.popup.watch(prop, sync); } catch (e) {}
-    });
-    if (view.popup.viewModel) {
-      try { view.popup.viewModel.watch("visible", sync); } catch (e) {}
-      try { view.popup.viewModel.watch("features", sync); } catch (e) {}
-    }
-    const root = view.container || document.getElementById("viewDiv");
-    if (root && typeof MutationObserver === "function") {
-      const obs = new MutationObserver(sync);
-      obs.observe(root, {
-        subtree: true,
-        childList: true,
-        attributes: true,
-        attributeFilter: ["class", "style", "hidden"]
-      });
-    }
+    try { view.popup.watch("visible", sync); } catch (e) {}
     sync();
   }
 
