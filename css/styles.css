@@ -1219,18 +1219,13 @@ calcite-flow-item.esri-features__content-feature,
   background: rgba(255, 255, 255, 0.98) !important;
 }
 
+.esri-popup__header,
 .esri-popup__header-buttons,
-.esri-popup__button {
+.esri-popup__button,
+.esri-popup calcite-action {
   position: relative;
-  z-index: 10;
+  z-index: 12;
   pointer-events: auto !important;
-}
-
-.esri-popup__button[title="Contraer"],
-.esri-popup__button[title="Collapse"],
-.esri-popup__collapse-button,
-.esri-popup .esri-popup__icon-collapse {
-  display: none !important;
 }
 
 .esri-attachments,
@@ -1672,12 +1667,23 @@ html.show-welcome .welcome-overlay:not(.report-overlay) {
     overscroll-behavior: contain;
   }
 
+  body.popup-visible #viewDiv {
+    position: relative;
+    z-index: 40;
+  }
+
   body.popup-visible .map-floating-controls,
   body.popup-visible .basemap-menu,
   body.popup-visible .near-me-sheet,
   body.popup-visible .esri-zoom {
-    visibility: hidden !important;
-    pointer-events: none !important;
+    z-index: 1 !important;
+  }
+
+  .esri-popup__header,
+  .esri-popup__header-buttons,
+  .esri-popup__button,
+  .esri-popup calcite-action {
+    pointer-events: auto !important;
   }
 
   .popup-detail-row {

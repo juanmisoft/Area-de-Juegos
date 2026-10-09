@@ -1421,7 +1421,7 @@ require([
           position: "bottom-center"
         };
         if (view2D.popup.visibleElements) {
-          view2D.popup.visibleElements.collapseButton = false;
+          view2D.popup.visibleElements.collapseButton = true;
           view2D.popup.visibleElements.featureNavigation = false;
         }
         view2D.popup.goToOverride = function() {
@@ -1527,7 +1527,7 @@ require([
           position: "bottom-center"
         };
         if (view3D.popup.visibleElements) {
-          view3D.popup.visibleElements.collapseButton = false;
+          view3D.popup.visibleElements.collapseButton = true;
           view3D.popup.visibleElements.featureNavigation = false;
         }
         view3D.popup.goToOverride = function() {
@@ -2025,7 +2025,16 @@ require([
   }
 
   function syncPopupOverlays(view) {
-    const open = !!(view && view.popup && view.popup.visible);
+    let open = false;
+    try {
+      const popup = view && view.popup;
+      const featureCount = popup && popup.features ? popup.features.length : 0;
+      open = !!(popup && (popup.visible || popup.selectedFeature || featureCount > 0));
+    } catch (e) {}
+    if (!open) {
+      const el = document.querySelector(".esri-popup");
+      open = !!(el && !el.classList.contains("esri-hidden") && el.querySelector(".esri-popup__main-container"));
+    }
     document.body.classList.toggle("popup-visible", open);
     if (!view || !isMobileLayout()) return;
     const sheet = document.getElementById("nearMeSheet");
@@ -2038,7 +2047,15 @@ require([
     if (!view || !view.popup || view.__rivasPopupBound) return;
     view.__rivasPopupBound = true;
     const sync = () => syncPopupOverlays(view);
-    try { view.popup.watch("visible", sync); } catch (e) {}
+    ["visible", "selectedFeature", "features"].forEach((prop) => {
+      try { view.popup.watch(prop, sync); } catch (e) {}
+    });
+    try {
+      view.on("click", () => {
+        setTimeout(sync, 60);
+        setTimeout(sync, 350);
+      });
+    } catch (e) {}
     sync();
   }
 
