@@ -76,7 +76,8 @@ require([
 
   const perfProfile = (function detectPerformanceProfile() {
     const ua = navigator.userAgent || "";
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+    const isAndroid = /Android/i.test(ua);
+    const isMobile = isAndroid || /iPhone|iPad|iPod|Mobile/i.test(ua)
       || ((navigator.maxTouchPoints || 0) > 1 && window.innerWidth < 900);
     const cores = navigator.hardwareConcurrency || 8;
     const memory = navigator.deviceMemory || 8;
@@ -84,6 +85,7 @@ require([
     const isLowPower = isMobile || saveData || cores <= 4 || memory <= 4;
     return {
       isMobile,
+      isAndroid,
       isLowPower,
       qualityProfile: isLowPower ? "low" : "medium",
       realisticTrees: !isLowPower,
@@ -209,6 +211,13 @@ require([
     return new URL(`texturas/${fileName}`, window.location.href).href;
   }
 
+  function createSoilSolidFill(color) {
+    return new SimpleFillSymbol({
+      color: [color[0], color[1], color[2], 0.78],
+      outline: { color: [36, 36, 36, 0.9], width: 1.25 }
+    });
+  }
+
   function createSoilPictureFill(fileName, tilePx) {
     const size = tilePx || 56;
     return new PictureFillSymbol({
@@ -234,10 +243,11 @@ require([
 
   function getAreaPolygonRenderer(for3D, tilePx) {
     const uniqueValueInfos = [];
+    const useSolidFill = !for3D && perfProfile.isAndroid;
     SOIL_STYLE_MAP.forEach((style) => {
       const symbol = for3D
         ? createSoilPolygon3DFill(style.color)
-        : createSoilPictureFill(style.file, tilePx);
+        : (useSolidFill ? createSoilSolidFill(style.color) : createSoilPictureFill(style.file, tilePx));
       style.values.forEach((value) => {
         uniqueValueInfos.push({ value, symbol, label: style.label });
       });
@@ -245,7 +255,7 @@ require([
 
     const defaultSymbol = for3D
       ? createSoilPolygon3DFill([88, 140, 92])
-      : createSoilPictureFill("suelo-default.png", tilePx);
+      : (useSolidFill ? createSoilSolidFill([88, 140, 92]) : createSoilPictureFill("suelo-default.png", tilePx));
 
     return new UniqueValueRenderer({
       valueExpression: AREA_SURFACE_EXPRESSION,
@@ -1149,9 +1159,11 @@ require([
       maxScale: perfProfile.areaIconMaxScale,
       labelsVisible: true,
       renderer: getAreaOverviewRenderer(for3D, iconFile),
-      featureReduction: getAreaClusterFeatureReduction(iconFile),
       visible: cfg.id === DEFAULT_SELECTED_GAME_ID
     };
+    if (!perfProfile.isAndroid) {
+      layerProps.featureReduction = getAreaClusterFeatureReduction(iconFile);
+    }
     if (for3D) {
       layerProps.elevationInfo = { mode: "relative-to-ground", offset: 1.2 };
     }
@@ -1463,6 +1475,16 @@ require([
     } catch (popupErr) {
       console.warn("Popup 2D config:", popupErr);
     }
+
+    try {
+      let mapRecoveryTries = 0;
+      view2D.watch("fatalError", (error) => {
+        if (!error || mapRecoveryTries >= 2) return;
+        mapRecoveryTries += 1;
+        console.warn("Recuperando el mapa:", error);
+        view2D.tryFatalErrorRecovery();
+      });
+    } catch (recoverErr) {}
 
     currentView = view2D;
     try {
