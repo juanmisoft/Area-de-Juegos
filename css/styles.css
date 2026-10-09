@@ -1145,15 +1145,19 @@ input:checked + .slider:before {
 }
 
 /* Custom ArcGIS Popup Overrides & Docking Position */
-.esri-popup--is-docked-top-center {
-  top: 20px !important;
+.esri-popup--is-docked-bottom-center {
+  bottom: 12px !important;
+  top: auto !important;
 }
 
 .esri-popup--is-docked .esri-popup__main-container {
-  width: 360px !important;
-  max-width: 90vw !important;
-  max-height: none !important;
+  width: 380px !important;
+  max-width: min(92vw, 420px) !important;
+  max-height: min(70vh, 640px) !important;
   height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
   border: 1px solid var(--border-color) !important;
@@ -1166,8 +1170,67 @@ input:checked + .slider:before {
 .esri-view-height-large .esri-popup__main-container,
 .esri-view-height-less-than-medium .esri-popup__main-container,
 .esri-popup__main-container {
-  max-height: none !important;
+  max-height: min(70vh, 640px) !important;
   height: auto !important;
+  overflow: hidden !important;
+}
+
+.esri-popup__main-container > .esri-features,
+.esri-popup__main-container .esri-features.esri-widget--panel,
+.esri-popup .esri-features {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.esri-popup .esri-feature-pagination,
+.esri-popup .esri-features__content-container,
+.esri-popup .esri-features__container,
+.esri-features__content-container,
+.esri-features__container {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+calcite-flow,
+calcite-flow-item.esri-features__content-feature {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.esri-popup__header {
+  padding: 10px 48px 6px 12px !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
+  flex: 0 0 auto !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+}
+
+.esri-popup__header-buttons,
+.esri-popup__button {
+  position: relative;
+  z-index: 6;
+}
+
+.esri-popup__button[title="Contraer"],
+.esri-popup__button[title="Collapse"],
+.esri-popup__collapse-button,
+.esri-popup .esri-popup__icon-collapse {
+  display: none !important;
 }
 
 .esri-popup__content,
@@ -1175,14 +1238,20 @@ input:checked + .slider:before {
 .esri-feature,
 .esri-feature__content-element,
 .esri-feature-content,
-.esri-popup .esri-widget {
+.esri-popup .esri-feature.esri-widget {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
   max-height: none !important;
-  overflow: visible !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
 }
 
 .esri-popup__content {
   display: block !important;
-  padding-bottom: 8px !important;
+  padding-bottom: 10px !important;
 }
 
 .esri-attachments,
@@ -1210,22 +1279,10 @@ input:checked + .slider:before {
   width: 100% !important;
   max-width: 100% !important;
   height: auto !important;
-  max-height: 240px !important;
+  max-height: 220px !important;
   object-fit: contain !important;
   background: #F8FAFC;
   border-radius: 8px;
-}
-
-.esri-popup__header {
-  padding: 8px 48px 2px 12px !important;
-  position: relative;
-  z-index: 2;
-}
-
-.esri-popup__header-buttons,
-.esri-popup__button {
-  position: relative;
-  z-index: 3;
 }
 
 .popup-custom-card {
@@ -1614,10 +1671,10 @@ html.show-welcome .welcome-overlay:not(.report-overlay) {
     right: 62px;
   }
 
-  .esri-popup--is-docked-top-center,
   .esri-popup--is-docked-bottom-center {
-    left: 8px !important;
-    right: 8px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
     width: auto !important;
   }
 
@@ -1638,31 +1695,19 @@ html.show-welcome .welcome-overlay:not(.report-overlay) {
   .esri-popup--is-docked .esri-popup__main-container {
     width: 100% !important;
     max-width: 100% !important;
-    max-height: min(68dvh, 560px) !important;
-    height: auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
+    max-height: min(58dvh, 480px) !important;
+    border-radius: 16px 16px 0 0 !important;
   }
 
-  .esri-popup__content,
-  .esri-popup__body,
-  .esri-feature,
-  .esri-feature__content-element,
-  .esri-feature-content,
-  .esri-popup .esri-widget {
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    max-height: none !important;
-    -webkit-overflow-scrolling: touch;
-    flex: 1 1 auto;
+  .esri-popup .esri-feature.esri-widget {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .esri-attachments img,
   .esri-attachments__image,
   .esri-attachments__item-mask img,
   .esri-popup .esri-attachments__item img {
-    max-height: 180px !important;
+    max-height: 160px !important;
   }
 
   .popup-detail-row {

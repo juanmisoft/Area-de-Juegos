@@ -119,7 +119,7 @@ require([
     { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube", isAdultEquipment: true },
     { id: 13, key: "tobogan", name: "Tobogán", icon2D: "Iconos 2D/tobogan.png", color: "#EA580C", primitive: "cone" },
     { id: "cama", layerId: 19, key: "cama", name: "Camas elásticas", icon2D: "Iconos 2D/CamaElastica.png", color: "#DB2777", primitive: "cylinder" },
-    { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/casa.png", color: "#6B7280", primitive: "cube" },
+    { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/cancelar.png", color: "#6B7280", primitive: "cube" },
     { id: 16, key: "compactos", name: "Multijuego / Compactos", icon2D: "Iconos 2D/Multijuego.png", color: "#E11D48", primitive: "cube" },
     { id: 17, key: "elemento", name: "Elemento de juego", icon2D: "Iconos 2D/Elemento_juego.png", color: "#0D9488", primitive: "sphere" },
     { id: 18, key: "red", name: "Red de trepa", icon2D: "Iconos 2D/Red.png", color: "#4F46E5", primitive: "cone" },
@@ -469,35 +469,100 @@ require([
     };
   }
 
-  function buildFeatureSharePayload(attrs, layerConfig, heading, lat, lon, fuenteInfo) {
-    const lines = [
-      heading || layerConfig.name,
-      layerConfig.isPolygon ? "Área de juego en Rivas Vaciamadrid" : ("Elemento: " + layerConfig.name),
-    ];
-    const detailPairs = [
-      ["Tipo", attrs.TIPO],
-      ["Elemento", attrs.ELEMENTO || attrs.NAME],
-      ["Tipo de suelo", attrs.TIPOSUELO || attrs.TIPO_DE_SUELO],
-      ["Edad recomendada", attrs.EDAD || attrs.EDAD_G],
-      ["Ubicación", attrs.UBICACION],
-      ["Código", attrs.CODIGO]
-    ];
-    detailPairs.forEach(([label, val]) => {
-      if (!popupHasValue(val)) return;
-      if (popupSameText(val, heading)) return;
-      lines.push(label + ": " + String(val).trim());
-    });
+  function getElementConfigsForShare() {
+    return GAME_LAYERS_CONFIG.filter((cfg) => !cfg.isPolygon);
+  }
+
+  function absoluteAssetUrl(path) {
+    try {
+      return new URL(path, window.location.href).href;
+    } catch (e) {
+      return path;
+    }
+  }
+
+  async function countElementsInsideArea(geometry) {
+    if (!geometry) return [];
+    const configs = getElementConfigsForShare();
+    const counts = await Promise.all(configs.map(async (cfg) => {
+      try {
+        const layer = new FeatureLayer({
+          url: `${SERVER_URL}/${getConfigLayerId(cfg)}`,
+          outFields: ["OBJECTID"]
+        });
+        const count = await layer.queryFeatureCount({
+          geometry,
+          spatialRelationship: "intersects",
+          where: getLayerBaseWhere(cfg)
+        });
+        return count > 0 ? { cfg, count } : null;
+      } catch (err) {
+        console.warn("Conteo elementos para compartir:", cfg.name, err);
+        return null;
+      }
+    }));
+    return counts.filter(Boolean);
+  }
+
+  async function buildAreaSharePayload(attrs, layerConfig, heading, lat, lon, fuenteInfo, graphic) {
+    const areaName = heading || attrs.NOMBRE || layerConfig.name;
+    const lines = [String(areaName).trim()];
+
+    if (layerConfig.isPolygon && graphic && graphic.geometry) {
+      const items = await countElementsInsideArea(graphic.geometry);
+      if (items.length) {
+        lines.push("");
+        lines.push("Elementos del área:");
+        items
+          .sort((a, b) => a.cfg.name.localeCompare(b.cfg.name, "es"))
+          .forEach(({ cfg, count }) => {
+            // Texto + URL del icono (algunas apps lo muestran; en el resto queda el nombre y cantidad)
+            lines.push(`• ${cfg.name}: ${count}`);
+            lines.push(`  Icono: ${absoluteAssetUrl(cfg.icon2D)}`);
+          });
+      } else {
+        lines.push("");
+        lines.push("Elementos del área: sin elementos inventariados dentro del área.");
+      }
+    } else if (!layerConfig.isPolygon) {
+      lines.push("Elemento: " + layerConfig.name);
+    }
+
+    const edad = attrs.EDAD || attrs.EDAD_G;
+    if (popupHasValue(edad)) {
+      lines.push("");
+      lines.push("Edad recomendada: " + String(edad).trim());
+    }
+
     if (layerConfig.isPolygon) {
       lines.push("Fuente: " + formatFuentePopupValue(fuenteInfo, attrs.FUENTE));
     }
+
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      lines.push("");
+      lines.push("Cómo llegar: " + getMapsUrl(lat, lon));
+    }
+
+    return {
+      title: String(areaName).trim() + " | Áreas de juego Rivas",
+      text: lines.join("\n"),
+      url: Number.isFinite(lat) && Number.isFinite(lon) ? getMapsUrl(lat, lon) : getAppShareUrl()
+    };
+  }
+
+  function buildFeatureSharePayload(attrs, layerConfig, heading, lat, lon, fuenteInfo) {
+    // Compatibilidad síncrona para elementos puntuales
+    const lines = [heading || layerConfig.name];
+    if (!layerConfig.isPolygon) lines.push("Elemento: " + layerConfig.name);
+    const edad = attrs.EDAD || attrs.EDAD_G;
+    if (popupHasValue(edad)) lines.push("Edad recomendada: " + String(edad).trim());
     if (Number.isFinite(lat) && Number.isFinite(lon)) {
       lines.push("Cómo llegar: " + getMapsUrl(lat, lon));
     }
-    lines.push("Mapa municipal: " + getAppShareUrl());
     return {
       title: (heading || layerConfig.name) + " | Áreas de juego Rivas",
       text: lines.join("\n"),
-      url: getAppShareUrl()
+      url: Number.isFinite(lat) && Number.isFinite(lon) ? getMapsUrl(lat, lon) : getAppShareUrl()
     };
   }
 
@@ -771,6 +836,19 @@ require([
                   lon,
                   fuenteInfo
                 );
+                if (layerConfig.isPolygon && graphic) {
+                  buildAreaSharePayload(
+                    attrs,
+                    layerConfig,
+                    heading,
+                    lat,
+                    lon,
+                    fuenteInfo,
+                    graphic
+                  ).then((payload) => {
+                    lastSharePayload = payload;
+                  }).catch(() => {});
+                }
 
                 const container = document.createElement("div");
                 container.className = "popup-custom-card";
@@ -788,10 +866,40 @@ require([
                 `;
                 const shareBtn = container.querySelector(".popup-btn-share");
                 if (shareBtn) {
-                  shareBtn.addEventListener("click", (evt) => {
+                  shareBtn.addEventListener("click", async (evt) => {
                     evt.preventDefault();
                     evt.stopPropagation();
-                    sharePayload(lastSharePayload);
+                    const original = shareBtn.innerHTML;
+                    shareBtn.disabled = true;
+                    shareBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparando...';
+                    try {
+                      const payload = layerConfig.isPolygon
+                        ? await buildAreaSharePayload(
+                          attrs,
+                          layerConfig,
+                          heading,
+                          lat,
+                          lon,
+                          fuenteInfo,
+                          graphic
+                        )
+                        : buildFeatureSharePayload(
+                          attrs,
+                          layerConfig,
+                          heading,
+                          lat,
+                          lon,
+                          fuenteInfo
+                        );
+                      lastSharePayload = payload;
+                      await sharePayload(payload);
+                    } catch (err) {
+                      console.warn("Compartir:", err);
+                      showShareToast("No se pudo preparar el contenido para compartir.");
+                    } finally {
+                      shareBtn.disabled = false;
+                      shareBtn.innerHTML = original;
+                    }
                   });
                 }
                 return container;
@@ -1310,7 +1418,7 @@ require([
         view2D.popup.dockOptions = {
           buttonEnabled: false,
           breakpoint: false,
-          position: isMobileLayout() ? "bottom-center" : "top-center"
+          position: "bottom-center"
         };
         if (view2D.popup.visibleElements) {
           view2D.popup.visibleElements.collapseButton = false;
@@ -1326,6 +1434,11 @@ require([
     }
 
     currentView = view2D;
+    try {
+      if (/^localhost$|^127\.0\.0\.1$/.test(window.location.hostname)) {
+        window.__rivasView2D = view2D;
+      }
+    } catch (e) {}
 
     // View Ready Handler
     view2D.when(() => {
@@ -1411,7 +1524,7 @@ require([
         view3D.popup.dockOptions = {
           buttonEnabled: false,
           breakpoint: false,
-          position: "top-center"
+          position: "bottom-center"
         };
         if (view3D.popup.visibleElements) {
           view3D.popup.visibleElements.collapseButton = false;
@@ -1915,19 +2028,104 @@ require([
     const el = document.querySelector(".esri-popup");
     if (!el || el.classList.contains("esri-hidden")) return false;
     const style = window.getComputedStyle(el);
-    if (style.display === "none" || style.visibility === "hidden") return false;
-    return el.clientHeight > 8;
+    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
+      return false;
+    }
+    const main = el.querySelector(".esri-popup__main-container");
+    const height = Math.max(el.clientHeight || 0, main ? main.clientHeight : 0);
+    return height > 8;
+  }
+
+  function constrainPopupScroll() {
+    const popup = document.querySelector(".esri-popup--is-docked");
+    const main = document.querySelector(".esri-popup__main-container");
+    if (!popup || !main) return;
+
+    const maxMain = Math.round(Math.min(
+      window.innerHeight * (isMobileLayout() ? 0.58 : 0.7),
+      isMobileLayout() ? 480 : 640
+    ));
+    main.style.setProperty("max-height", maxMain + "px", "important");
+    main.style.setProperty("height", "auto", "important");
+    main.style.setProperty("overflow", "hidden", "important");
+    main.style.setProperty("display", "flex", "important");
+    main.style.setProperty("flex-direction", "column", "important");
+
+    if (isMobileLayout()) {
+      popup.style.setProperty("bottom", "0px", "important");
+      popup.style.setProperty("top", "auto", "important");
+      popup.style.setProperty("left", "0px", "important");
+      popup.style.setProperty("right", "0px", "important");
+      main.style.setProperty("width", "100%", "important");
+      main.style.setProperty("max-width", "100%", "important");
+      main.style.setProperty("border-radius", "16px 16px 0 0", "important");
+    }
+
+    const features = main.querySelector(".esri-features");
+    if (features) {
+      features.style.setProperty("flex", "1 1 auto", "important");
+      features.style.setProperty("min-height", "0", "important");
+      features.style.setProperty("max-height", "100%", "important");
+      features.style.setProperty("overflow", "hidden", "important");
+      features.style.setProperty("display", "flex", "important");
+      features.style.setProperty("flex-direction", "column", "important");
+    }
+
+    const flowItem = main.querySelector("calcite-flow-item");
+    if (flowItem) {
+      try { flowItem.collapsible = false; } catch (e) {}
+      flowItem.style.setProperty("flex", "1 1 auto", "important");
+      flowItem.style.setProperty("min-height", "0", "important");
+      flowItem.style.setProperty("max-height", "100%", "important");
+      flowItem.style.setProperty("overflow", "hidden", "important");
+    }
+
+    const heading = main.querySelector(".esri-features__heading, h2.esri-widget__heading");
+    const actionBar = main.querySelector("calcite-action-bar");
+    const used = (heading ? heading.getBoundingClientRect().height : 36)
+      + (actionBar ? actionBar.getBoundingClientRect().height : 0)
+      + (isMobileLayout() ? 20 : 28);
+    const mainH = Math.min(main.getBoundingClientRect().height || maxMain, maxMain);
+    const maxScroll = Math.max(140, Math.round(mainH - used));
+
+    const scrollers = main.querySelectorAll(
+      ".esri-features__content-container, .esri-features__container, .esri-feature, .esri-feature__content-node"
+    );
+    scrollers.forEach((scroller) => {
+      scroller.style.setProperty("max-height", maxScroll + "px", "important");
+      scroller.style.setProperty("height", "auto", "important");
+      scroller.style.setProperty("overflow-y", "auto", "important");
+      scroller.style.setProperty("overflow-x", "hidden", "important");
+      scroller.style.setProperty("-webkit-overflow-scrolling", "touch", "important");
+      scroller.style.setProperty("min-height", "0", "important");
+      scroller.style.setProperty("flex", "1 1 auto", "important");
+    });
+
+    main.querySelectorAll("img").forEach((img) => {
+      if (img.dataset.rivasScrollBound) return;
+      img.dataset.rivasScrollBound = "1";
+      img.addEventListener("load", () => constrainPopupScroll(), { once: true });
+    });
   }
 
   function syncPopupOverlays(view) {
     const open = isEsriPopupOpen();
     document.body.classList.toggle("popup-visible", open);
-    if (!view || !view.popup || !isMobileLayout()) return;
-    view.popup.dockOptions = {
-      buttonEnabled: false,
-      breakpoint: false,
-      position: "bottom-center"
-    };
+    if (view && view.popup) {
+      view.popup.dockOptions = {
+        buttonEnabled: false,
+        breakpoint: false,
+        position: "bottom-center"
+      };
+    }
+    if (open) {
+      constrainPopupScroll();
+      requestAnimationFrame(constrainPopupScroll);
+      setTimeout(constrainPopupScroll, 120);
+      setTimeout(constrainPopupScroll, 450);
+      setTimeout(constrainPopupScroll, 1200);
+    }
+    if (!view || !isMobileLayout()) return;
     const sheet = document.getElementById("nearMeSheet");
     if (open && sheet && !sheet.hidden && sheet.classList.contains("open") && !sheet.classList.contains("minimized")) {
       setNearMeSheetOpen(true, true);
@@ -1976,8 +2174,15 @@ require([
     view2D.popup.dockOptions = {
       buttonEnabled: false,
       breakpoint: false,
-      position: isMobileLayout() ? "bottom-center" : "top-center"
+      position: "bottom-center"
     };
+    if (view3D && view3D.popup) {
+      view3D.popup.dockOptions = {
+        buttonEnabled: false,
+        breakpoint: false,
+        position: "bottom-center"
+      };
+    }
   }
 
   function setNearMeSheetOpen(open, minimized) {
