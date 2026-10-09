@@ -2052,8 +2052,20 @@ require([
     queryNearMeResults(circleGeometry, mapPoint);
   }
 
+  function isPopupVisiblyOpen() {
+    const el = document.querySelector(".esri-popup");
+    if (!el || el.classList.contains("esri-hidden")) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") return false;
+    const main = el.querySelector(".esri-popup__main-container");
+    if (!main) return false;
+    return main.getBoundingClientRect().height > 24;
+  }
+
   function syncPopupOverlays(view) {
-    const open = !!(view && view.popup && view.popup.visible);
+    const popup = view && view.popup;
+    const apiClosed = !!(popup && (popup.visible === false || popup.collapsed));
+    const open = !apiClosed && isPopupVisiblyOpen();
     document.body.classList.toggle("popup-visible", open);
     if (!view || !isMobileLayout()) return;
     const sheet = document.getElementById("nearMeSheet");
@@ -2066,15 +2078,35 @@ require([
     if (!view || !view.popup || view.__rivasPopupBound) return;
     view.__rivasPopupBound = true;
     const sync = () => syncPopupOverlays(view);
-    ["visible", "selectedFeature", "features"].forEach((prop) => {
+    ["visible", "collapsed"].forEach((prop) => {
       try { view.popup.watch(prop, sync); } catch (e) {}
     });
-    try {
-      view.on("click", () => {
-        setTimeout(sync, 60);
-        setTimeout(sync, 350);
+    if (view.popup.viewModel) {
+      try { view.popup.viewModel.watch("visible", sync); } catch (e) {}
+    }
+    const root = view.container || document.getElementById("viewDiv");
+    if (root && typeof MutationObserver === "function") {
+      const obs = new MutationObserver(sync);
+      obs.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+    }
+    document.addEventListener("click", (event) => {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      const closed = path.some((node) => {
+        if (!node || node.nodeType !== 1) return false;
+        const label = [
+          node.getAttribute && node.getAttribute("title"),
+          node.getAttribute && node.getAttribute("aria-label"),
+          node.getAttribute && node.getAttribute("text"),
+          node.icon,
+          node.getAttribute && node.getAttribute("icon")
+        ].filter(Boolean).join(" ");
+        return /cerrar|close|contraer|collapse/i.test(label) || node.icon === "x";
       });
-    } catch (e) {}
+      if (!closed) return;
+      document.body.classList.remove("popup-visible");
+      setTimeout(sync, 60);
+      setTimeout(sync, 320);
+    }, true);
     sync();
   }
 
