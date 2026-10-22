@@ -952,30 +952,6 @@ body {
   justify-content: space-between;
 }
 
-.fuentes-toggle-row {
-  gap: 12px;
-  padding: 0.55rem 0.65rem;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: var(--radius-md);
-}
-
-.fuentes-toggle-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text);
-}
-
-.fuentes-toggle-icon {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
 .switch {
   position: relative;
   display: inline-block;

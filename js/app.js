@@ -2855,14 +2855,6 @@ require([
       });
     }
 
-    const fuentesToggle = document.getElementById("fuentesNearToggle");
-    if (fuentesToggle) {
-      fuentesToggle.checked = false;
-      fuentesToggle.addEventListener("change", (e) => {
-        setFuentesNearVisible(!!e.target.checked);
-      });
-    }
-
     // Daylight / Sun Widget toggle button (Mutually exclusive with Weather widget to prevent overlap)
     document.getElementById("btnOpenDaylight").addEventListener("click", () => {
       if (!is3DMode) {
