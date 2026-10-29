@@ -620,16 +620,6 @@ require([
     return fuentesLayerPromise;
   }
 
-  function formatFuentePopupValue(info, storedValue) {
-    if (info && info.found) {
-      const meters = Number.isFinite(info.meters) ? Math.round(info.meters) : null;
-      return meters != null ? `SI (${meters} m)` : "SI";
-    }
-    if (info && info.queried) return "NO";
-    if (popupHasValue(storedValue)) return String(storedValue).trim();
-    return "NO";
-  }
-
   async function queryNearestFuente(graphic) {
     if (!graphic || !graphic.geometry) return { queried: false, found: false };
     try {
@@ -862,12 +852,6 @@ require([
                   shownLabels[label] = true;
                   rowsHtml += `<div class="popup-detail-row"><strong>${escapeHtml(label)}:</strong> <span>${escapeHtml(val)}</span></div>`;
                 });
-
-                if (layerConfig.isPolygon && !shownLabels.Fuente) {
-                  const fuenteVal = formatFuentePopupValue(fuenteInfo, attrs.FUENTE);
-                  shownLabels.Fuente = true;
-                  rowsHtml += `<div class="popup-detail-row"><strong>Fuente:</strong> <span>${escapeHtml(fuenteVal)}</span></div>`;
-                }
 
                 if (layerConfig.isPolygon && areaGraphic) {
                   buildAreaSharePayload(
