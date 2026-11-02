@@ -112,13 +112,15 @@ require([
   const GAME_LAYERS_CONFIG = [
     { id: 9, layerId: 9, key: "areas", name: "Área infantil", icon2D: "parque-de-atracciones.png", isPolygon: true, tipoWhere: "TIPO = 'AREA INFANTIL'" },
     { id: "agua", layerId: 9, key: "agua", name: "Juegos de agua", icon2D: "splash-icon.png", isPolygon: true, tipoWhere: "TIPO = 'JUEGOS DE AGUA'" },
+    { id: "area-bio", layerId: 9, key: "area-bio", name: "Área Biosaludable", icon2D: "AreasBiosaludables.png?v=20261030-icono", isPolygon: true, tipoWhere: "TIPO = 'BIOSALUDABLE'" },
+    { id: "area-cal", layerId: 9, key: "area-cal", name: "Área de Calistenia", icon2D: "AreasCalistenia.png?v=20261030-icono", isPolygon: true, tipoWhere: "TIPO = 'CALISTENIA'" },
     { id: 0, key: "trepar", name: "Juego de trepar", icon2D: "Iconos 2D/trepar.png", color: "#A16207", primitive: "sphere" },
     { id: 1, key: "tirolina", name: "Tirolina", icon2D: "Iconos 2D/tirolina.png", color: "#0891B2", primitive: "cylinder" },
-    { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder", isAdultEquipment: true },
+    { id: 4, key: "biosaludable", name: "Biosaludable", icon2D: "Iconos 2D/Biosaludable.png", color: "#16A34A", primitive: "cylinder", adultAge: true },
     { id: 5, key: "columpio", name: "Columpio", icon2D: "Iconos 2D/columpio.png", color: "#2563EB", primitive: "cylinder" },
     { id: 6, key: "carrusel", name: "Carrusel", icon2D: "Iconos 2D/carrusel.png", color: "#9333EA", primitive: "cylinder" },
     { id: 7, key: "balancin", name: "Balancín", icon2D: "Iconos 2D/balancin.png", color: "#D97706", primitive: "cylinder" },
-    { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube", isAdultEquipment: true },
+    { id: 8, key: "calistenia", name: "Calistenia", icon2D: "Iconos 2D/Calistemia.png", color: "#059669", primitive: "cube", adultAge: true },
     { id: 13, key: "tobogan", name: "Tobogán", icon2D: "Iconos 2D/tobogan.png", color: "#EA580C", primitive: "cone" },
     { id: "cama", layerId: 19, key: "cama", name: "Camas elásticas", icon2D: "Iconos 2D/CamaElastica.png", color: "#DB2777", primitive: "cylinder" },
     { id: 14, key: "sindatos", name: "Sin datos", icon2D: "Iconos 2D/cancelar.png", color: "#6B7280", primitive: "cube" },
@@ -1719,6 +1721,8 @@ require([
     const selectedId = getSelectedGameId();
     if (item.config.id === selectedId) return true;
     if (isInfantAreaSelection(selectedId) && (isPlayElementConfig(item.config) || item.config.isAdultEquipment)) return true;
+    if (selectedId === "area-bio" && item.config.key === "biosaludable") return true;
+    if (selectedId === "area-cal" && item.config.key === "calistenia") return true;
     return false;
   }
 
@@ -1729,7 +1733,7 @@ require([
     const availableFields = item.fields || [];
     const hasEdad = availableFields.includes("EDAD") || availableFields.includes("EDAD_G");
     const isAdultEquipment = !!item.config.isAdultEquipment;
-    const skipAgeConstraint = activeAgeFilter === "adult" && isAdultEquipment;
+    const skipAgeConstraint = activeAgeFilter === "adult" && (isAdultEquipment || item.config.adultAge);
 
     if (activeAgeFilter && !hasEdad && !skipAgeConstraint) return null;
 
@@ -2325,11 +2329,12 @@ require([
 
         let extra = "";
         if (group.expandable) {
-          extra = `<span class="near-detail-chip">${childCount} ${childCount === 1 ? "juego" : "juegos"}</span>`;
+          const noun = group.key === "area-bio" || group.key === "area-cal"
+            ? (childCount === 1 ? "aparato" : "aparatos")
+            : (childCount === 1 ? "juego" : "juegos");
+          extra = `<span class="near-detail-chip">${childCount} ${noun}</span>`;
         } else if (group.key === "mesas" && childCount > 1) {
           extra = `<span class="near-detail-chip">${childCount} mesas</span>`;
-        } else if (group.key === "calistenia" && childCount > 1) {
-          extra = `<span class="near-detail-chip">${childCount} aparatos</span>`;
         }
 
         card.innerHTML = `
@@ -2404,17 +2409,21 @@ require([
     const findCfg = (pred) => activeLayers2D.find((item) => pred(item.config));
     const areaLayer = findCfg((cfg) => cfg.key === "areas");
     const waterLayer = findCfg((cfg) => cfg.key === "agua");
-    const bioLayer = findCfg((cfg) => cfg.key === "biosaludable");
-    const calLayer = findCfg((cfg) => cfg.key === "calistenia");
+    const bioAreaLayer = findCfg((cfg) => cfg.key === "area-bio");
+    const calAreaLayer = findCfg((cfg) => cfg.key === "area-cal");
+    const bioEquip = findCfg((cfg) => cfg.key === "biosaludable");
+    const calEquip = findCfg((cfg) => cfg.key === "calistenia");
     const pingLayer = findCfg((cfg) => cfg.key === "pingpong");
-    const playLayers = activeLayers2D.filter((item) => !item.config.isPolygon && !item.config.isAdultEquipment);
+    const playLayers = activeLayers2D.filter((item) => isPlayElementConfig(item.config) && item.config.key !== "biosaludable" && item.config.key !== "calistenia");
 
-    const [areaFeats, waterFeats, bioFeats, calFeats, pingFeats] = await Promise.all([
+    const [areaFeats, waterFeats, bioAreaFeats, calAreaFeats, pingFeats, bioEquipFeats, calEquipFeats] = await Promise.all([
       queryLayerInBuffer(areaLayer && areaLayer.layer, geometry, getPolygonWhere(areaLayer && areaLayer.config)),
       queryLayerInBuffer(waterLayer && waterLayer.layer, geometry, AREA_AGUA_WHERE),
-      queryLayerInBuffer(bioLayer && bioLayer.layer, geometry, "1=1"),
-      queryLayerInBuffer(calLayer && calLayer.layer, geometry, "1=1"),
-      queryLayerInBuffer(pingLayer && pingLayer.layer, geometry, "1=1")
+      queryLayerInBuffer(bioAreaLayer && bioAreaLayer.layer, geometry, getPolygonWhere(bioAreaLayer && bioAreaLayer.config)),
+      queryLayerInBuffer(calAreaLayer && calAreaLayer.layer, geometry, getPolygonWhere(calAreaLayer && calAreaLayer.config)),
+      queryLayerInBuffer(pingLayer && pingLayer.layer, geometry, "1=1"),
+      queryLayerInBuffer(bioEquip && bioEquip.layer, geometry, "1=1"),
+      queryLayerInBuffer(calEquip && calEquip.layer, geometry, "1=1")
     ]);
 
     const infantiles = areaFeats
@@ -2427,6 +2436,15 @@ require([
       .filter(Boolean)
       .sort((a, b) => a.distance - b.distance);
 
+    const areasBio = bioAreaFeats
+      .map((feat) => toNearMeItem(feat, bioAreaLayer && bioAreaLayer.config, userPoint))
+      .filter(Boolean)
+      .sort((a, b) => a.distance - b.distance);
+    const areasCal = calAreaFeats
+      .map((feat) => toNearMeItem(feat, calAreaLayer && calAreaLayer.config, userPoint))
+      .filter(Boolean)
+      .sort((a, b) => a.distance - b.distance);
+
     const playElements = [];
     for (const item of playLayers) {
       const feats = await queryLayerInBuffer(item.layer, geometry, "1=1");
@@ -2436,27 +2454,12 @@ require([
       });
     }
     assignPlayElementsToAreas(infantiles, playElements);
-
-    const biosaludable = bioFeats
-      .map((feat) => {
-        const rec = toNearMeItem(feat, bioLayer.config, userPoint);
-        if (!rec) return null;
-        rec.name = nearMeAttr(feat.attributes, ["NAME", "NOMBRE", "ELEMENTO"], "Biosaludable");
-        rec.elements = [];
-        return rec;
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.distance - b.distance);
-
-    const calItems = calFeats
-      .map((feat) => toNearMeItem(feat, calLayer.config, userPoint))
-      .filter(Boolean);
-    const calistenia = groupNearMeZones(
-      calItems,
-      (item) => String(nearMeAttr(item.feature.attributes, ["CODIGO"], item.distance)),
-      () => "Zona de calistenia",
-      calLayer && calLayer.config
-    );
+    assignPlayElementsToAreas(areasBio, bioEquipFeats
+      .map((feat) => toNearMeItem(feat, bioEquip && bioEquip.config, userPoint))
+      .filter(Boolean));
+    assignPlayElementsToAreas(areasCal, calEquipFeats
+      .map((feat) => toNearMeItem(feat, calEquip && calEquip.config, userPoint))
+      .filter(Boolean));
 
     const pingItems = pingFeats
       .map((feat) => toNearMeItem(feat, pingLayer.config, userPoint))
@@ -2471,8 +2474,8 @@ require([
     const zoneGroups = [
       { key: "infantiles", title: "Áreas infantiles", icon: (areaLayer && areaLayer.config.icon2D) || AREA_OVERVIEW_ICON, expandable: true, zones: infantiles },
       { key: "agua", title: "Juegos de agua", icon: (waterLayer && waterLayer.config.icon2D) || "splash-icon.png", expandable: false, zones: juegosAgua },
-      { key: "biosaludable", title: "Biosaludable", icon: bioLayer ? bioLayer.config.icon2D : "", expandable: false, zones: biosaludable },
-      { key: "calistenia", title: "Calistenia", icon: calLayer ? calLayer.config.icon2D : "", expandable: false, zones: calistenia },
+      { key: "area-bio", title: "Áreas biosaludables", icon: (bioAreaLayer && bioAreaLayer.config.icon2D) || "AreasBiosaludables.png?v=20261030-icono", expandable: true, zones: areasBio },
+      { key: "area-cal", title: "Áreas de calistenia", icon: (calAreaLayer && calAreaLayer.config.icon2D) || "AreasCalistenia.png?v=20261030-icono", expandable: true, zones: areasCal },
       { key: "mesas", title: "Mesas de ping pong", icon: pingLayer ? pingLayer.config.icon2D : "", expandable: false, zones: mesas }
     ];
 

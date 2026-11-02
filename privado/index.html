@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mantenimiento de áreas de juego | Rivas Vaciamadrid</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#007A3D">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
+  <link rel="stylesheet" href="css/styles.css?v=20261102-ver-clave">
+</head>
+<body>
+  <div id="loginScreen">
+    <form id="loginForm" class="login-card" autocomplete="on">
+      <div class="login-logos">
+        <img src="Logo_OITR.png" alt="Ayuntamiento de Rivas Vaciamadrid">
+        <img src="contenur.jpg" alt="Contenur">
+      </div>
+      <p class="login-kicker">Entorno privado</p>
+      <h1>Mantenimiento de áreas de juego</h1>
+      <p class="login-lead">Acceso del personal del Ayuntamiento y de las empresas colaboradoras.</p>
+      <label for="loginUser">Usuario</label>
+      <input id="loginUser" name="username" type="text" autocomplete="username" required>
+      <label for="loginPass">Contraseña</label>
+      <div class="password-field">
+        <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+        <button id="togglePass" type="button" aria-label="Mostrar contraseña" aria-pressed="false">
+          <i class="fa-regular fa-eye" aria-hidden="true"></i>
+        </button>
+      </div>
+      <p id="loginError" class="login-error" role="alert"></p>
+      <button id="loginSubmit" type="submit">Entrar</button>
+    </form>
+  </div>
+
+  <div id="app" hidden>
+    <header class="app-header">
+      <div class="brand">
+        <img src="Logo_OITR.png" alt="">
+        <div>
+          <strong>Áreas de juego</strong>
+          <span>Mantenimiento · Contenur</span>
+        </div>
+      </div>
+      <div class="layer-filter">
+        <label><input id="toggleArea" type="checkbox" checked><img src="../parque-de-atracciones.png" alt=""> Áreas</label>
+        <label><input id="toggleJuego" type="checkbox" checked><img src="../Iconos 2D/columpio.png" alt=""> Juegos</label>
+        <label><input id="toggleBio" type="checkbox" checked><img src="../Iconos 2D/Biosaludable.png" alt=""> Biosaludables</label>
+      </div>
+      <div class="header-user">
+        <span id="sessionUser"></span>
+        <button id="btnLogout" type="button">Cerrar sesión</button>
+      </div>
+    </header>
+    <div class="workspace">
+      <aside class="panel">
+        <section class="block">
+          <h2>Actuaciones</h2>
+          <div class="row2">
+            <label>Desde
+              <input id="fDesde" type="date">
+            </label>
+            <label>Hasta
+              <input id="fHasta" type="date">
+            </label>
+          </div>
+          <label>Ámbito
+            <select id="fAmbito">
+              <option value="todas">Áreas, juegos y biosaludables</option>
+              <option value="area">Áreas</option>
+              <option value="juego">Elementos de juego</option>
+              <option value="bio">Equipos biosaludables</option>
+            </select>
+          </label>
+          <fieldset class="estado-filter">
+            <legend>Estado</legend>
+            <label><input type="radio" name="fEstado" value="todas" checked> Todas</label>
+            <label><input type="radio" name="fEstado" value="abierta"> Abiertas</label>
+            <label><input type="radio" name="fEstado" value="cerrada"> Cerradas</label>
+          </fieldset>
+          <label>Código o actuación
+            <input id="fCodigo" type="search" placeholder="Código, nombre o A-123" autocomplete="off">
+          </label>
+          <p class="hint">El código o el nombre tienen que coincidir enteros; no importan mayúsculas ni minúsculas. La actuación concreta es A-123 (área), J-123 (juego) o B-123 (biosaludable).</p>
+          <div class="actions">
+            <button id="btnBuscar" type="button" class="primary">Buscar</button>
+            <button id="btnLimpiar" type="button" class="ghost">Limpiar</button>
+            <button id="btnPrintList" type="button" class="ghost" disabled>Imprimir listado</button>
+          </div>
+          <p id="resultStatus" class="status"></p>
+        </section>
+        <section id="ficha" class="block ficha" hidden>
+          <div class="ficha-head">
+            <div>
+              <p id="fichaKind" class="kicker"></p>
+              <h2 id="fichaTitle"></h2>
+              <p id="fichaMeta" class="meta"></p>
+            </div>
+            <button id="btnPrintOne" type="button" class="ghost" disabled>Imprimir actuación</button>
+          </div>
+          <div id="fichaHistory" class="history"></div>
+          <form id="actuacionForm">
+            <h3>Parte de trabajo</h3>
+            <div id="formFields"></div>
+            <div class="actions">
+              <button id="btnSave" type="submit" class="primary">Registrar actuación</button>
+              <button id="btnNew" type="button" class="ghost">Nueva</button>
+              <button id="btnDelete" type="button" class="danger" disabled>Eliminar actuación</button>
+            </div>
+            <p id="formStatus" class="status"></p>
+          </form>
+        </section>
+      </aside>
+      <div class="stage">
+        <div class="map-wrap">
+          <div id="viewDiv"></div>
+          <button id="btnBasemap" class="basemap-toggle" type="button" title="Cambiar mapa base" aria-expanded="false" aria-controls="basemapMenu">
+            <i class="fa-solid fa-layer-group"></i>
+          </button>
+          <div id="basemapMenu" class="basemap-menu" hidden>
+            <button type="button" class="basemap-option active" data-basemap="streets-navigation-vector">Callejero</button>
+            <button type="button" class="basemap-option" data-basemap="topo-vector">Topográfico</button>
+            <button type="button" class="basemap-option" data-basemap="hybrid">Satélite</button>
+            <button type="button" class="basemap-option" data-basemap="gray-vector">Gris claro</button>
+            <button type="button" class="basemap-option" data-basemap="dark-gray-vector">Gris oscuro</button>
+            <button type="button" class="basemap-option" data-basemap="osm">OpenStreetMap</button>
+          </div>
+        </div>
+        <section class="results-block results-dock" hidden>
+          <div class="results-head">
+            <h2>Resultados</h2>
+            <span id="resultFilterNote" class="meta"></span>
+            <button id="btnToggleResults" type="button" aria-expanded="true">Ocultar tabla</button>
+          </div>
+          <div id="resultList" class="result-list"></div>
+        </section>
+      </div>
+      <aside id="dashboard" class="dash" aria-label="Cuadro de mando">
+        <h2>Cuadro de mando</h2>
+        <p id="dashFilters" class="meta"></p>
+        <figure class="dash-pie">
+          <div id="dashPie" class="dash-pie-chart" role="img" aria-label="Distribución de actuaciones">
+            <strong id="dashPieTotal">—</strong>
+          </div>
+          <figcaption>
+            <button type="button" class="pie-legend" data-focus="abierta"><i class="swatch swatch-open"></i> Abiertas</button>
+            <button type="button" class="pie-legend" data-focus="cerrada"><i class="swatch swatch-closed"></i> Cerradas</button>
+            <span><i class="swatch swatch-none"></i> Sin fechas</span>
+          </figcaption>
+        </figure>
+        <button id="btnMapAll" type="button" class="ghost map-all">Ver todos los elementos</button>
+        <p id="mapFocusNote" class="hint"></p>
+        <div class="dash-kpis">
+          <button type="button" class="kpi kpi-open" data-focus="abierta">
+            <strong id="dashOpen">—</strong>
+            <span>Abiertas</span>
+          </button>
+          <button type="button" class="kpi kpi-closed" data-focus="cerrada">
+            <strong id="dashClosed">—</strong>
+            <span>Cerradas</span>
+          </button>
+        </div>
+        <h3>Por ámbito</h3>
+        <ul id="dashKinds" class="dash-kinds"></ul>
+        <dl class="dash-extra">
+          <div><dt>Incidencias abiertas</dt><dd id="dashIncidents">—</dd></div>
+          <div><dt>Media de días abiertas</dt><dd id="dashAge">—</dd></div>
+          <div><dt>La más antigua</dt><dd id="dashOldest">—</dd></div>
+          <div><dt>Sin fechas</dt><dd id="dashUndated">—</dd></div>
+          <div><dt>Total del filtro</dt><dd id="dashTotal">—</dd></div>
+        </dl>
+        <p id="dashNote" class="hint"></p>
+      </aside>
+    </div>
+  </div>
+
+  <div id="printSheet"></div>
+  <script src="https://js.arcgis.com/4.30/"></script>
+  <script src="js/app.js?v=20261102-ver-clave"></script>
+</body>
+</html>
