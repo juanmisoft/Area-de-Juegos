@@ -85,6 +85,9 @@
   let focusLayer = null;
   let addFocusGraphics = function () {};
   let focusToken = 0;
+  let syncBusy = false;
+  let pollTimer = null;
+  const ACTUACIONES_POLL_MS = 15000;
 
   const $ = function (id) { return document.getElementById(id); };
 
@@ -338,6 +341,15 @@
 
   const JUEGO_LABEL = 'DefaultValue($feature.CODIGO_G, "")';
 
+  const AREA_LABEL = [
+    'var code = DefaultValue($feature.COD_AREA, "");',
+    'var name = DefaultValue($feature.NOMBRE, "");',
+    'if (IsEmpty(code) && IsEmpty(name)) return "";',
+    'if (IsEmpty(name)) return code;',
+    'if (IsEmpty(code)) return name;',
+    'return code + " – " + name;'
+  ].join("\n");
+
   const BIO_LABEL = [
     'var elem = DefaultValue($feature.CODIGO, "");',
     'var area = "";',
@@ -571,13 +583,17 @@
     $("formFields").innerHTML = html +
       '<div class="form-section"><h4>Incidencia</h4>' +
       '<label class="check-field">Hay incidencia<select data-field="A_I_INCIDENCIA" data-kind="check"><option value="NO">NO</option><option value="SI">SI</option></select></label>' +
-      '<div class="row2"><label>Fecha de incidencia<input data-field="A_I_F_INCIDENCIA" data-kind="date" type="date"></label>' +
+      '<div class="row2"><label>Fecha de incidencia<input data-field="A_I_F_INCIDENCIA" data-kind="date" type="date" required></label>' +
       '<label>Fecha de resolución<input data-field="A_I_F_RESOLUCION" data-kind="date" type="date"></label></div>' +
       '<label>Material necesario<input data-field="A_I_MAT_NECESARIO" data-kind="text" type="text"></label>' +
       '<label>Descripción<textarea data-field="A_I_DESCRIPCION" data-kind="text"></textarea></label>' +
       '<label>Observaciones<textarea data-field="M_F_OBSERVACIONES" data-kind="text"></textarea></label>' +
       '<label class="file-field">Fotografía<input id="fAdjunto" type="file" accept="image/*"></label>' +
       '<div id="adjuntoList" class="adjunto-list"></div></div>';
+  }
+
+  function todayInputDate() {
+    return toInputDate(Date.now());
   }
 
   function resetForm() {
@@ -591,6 +607,8 @@
       if (input.dataset.kind === "check") input.value = "NO";
       else input.value = "";
     });
+    const fechaIncidencia = $("actuacionForm").querySelector('[data-field="A_I_F_INCIDENCIA"]');
+    if (fechaIncidencia) fechaIncidencia.value = todayInputDate();
     if ($("fAdjunto")) $("fAdjunto").value = "";
     if ($("adjuntoList")) $("adjuntoList").textContent = "";
   }
@@ -880,7 +898,7 @@
       view.when(function () {
         return areaLayer.queryFeatures({
           where: includedAreaWhere(),
-          outFields: ["OBJECTID", "CODIGO", "TIPO"],
+          outFields: ["OBJECTID", "CODIGO", "COD_AREA", "NOMBRE", "TIPO"],
           returnGeometry: true,
           outSpatialReference: view.spatialReference
         });
@@ -893,6 +911,8 @@
             attributes: {
               OBJECTID: feature.attributes.OBJECTID,
               CODIGO: feature.attributes.CODIGO || "",
+              COD_AREA: feature.attributes.COD_AREA || "",
+              NOMBRE: feature.attributes.NOMBRE || "",
               TIPO: feature.attributes.TIPO || "",
               ICON: areaIconKey(feature.attributes.TIPO)
             }
@@ -906,10 +926,12 @@
           title: "Iconos de área",
           popupEnabled: false,
           labelsVisible: true,
-          labelingInfo: codeLabel('DefaultValue($feature.CODIGO, "")', 8000),
+          labelingInfo: codeLabel(AREA_LABEL, 8000),
           fields: [
             { name: "OBJECTID", type: "oid" },
             { name: "CODIGO", type: "string" },
+            { name: "COD_AREA", type: "string" },
+            { name: "NOMBRE", type: "string" },
             { name: "TIPO", type: "string" },
             { name: "ICON", type: "string" }
           ],
@@ -933,6 +955,7 @@
       $("toggleBio").addEventListener("change", function () { bioLayer.visible = $("toggleBio").checked; });
       Promise.all([areaLayer.load(), juegoLayer.load(), bioLayer.load(), tableLayers.area.load(), tableLayers.juego.load(), tableLayers.bio.load()]).then(function () {
         refreshDashboard();
+        startActuacionesPolling();
       }).catch(function () {
         setStatus($("resultStatus"), "No se ha podido abrir el servicio de edición. Vuelve a entrar.", true);
       });
@@ -1463,36 +1486,30 @@
     if (dist < 43 || dist > box.width / 2) return null;
     const open = Number(pie.dataset.open) || 0;
     const closed = Number(pie.dataset.closed) || 0;
-    const undated = Number(pie.dataset.undated) || 0;
-    const total = open + closed + undated;
+    const total = open + closed;
     if (!total) return null;
     const deg = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
     const openDeg = open / total * 360;
-    const closedDeg = closed / total * 360;
     if (deg < openDeg) return "abierta";
-    if (deg < openDeg + closedDeg) return "cerrada";
-    return null;
+    return "cerrada";
   }
 
-  function paintPie(open, closed, undated) {
-    const total = open + closed + undated;
+  function paintPie(open, closed) {
+    const total = open + closed;
     const pie = $("dashPie");
     $("dashPieTotal").textContent = total ? formatCount(total) : "—";
     if (!total) {
       pie.style.background = "#e4ece7";
       pie.dataset.open = "0";
       pie.dataset.closed = "0";
-      pie.dataset.undated = "0";
       pie.setAttribute("aria-label", "Sin actuaciones en el filtro");
       return;
     }
     const openEnd = open / total * 100;
-    const closedEnd = (open + closed) / total * 100;
     pie.dataset.open = String(open);
     pie.dataset.closed = String(closed);
-    pie.dataset.undated = String(undated);
-    pie.style.background = "conic-gradient(#d21f2c 0 " + openEnd + "%, #007A3D " + openEnd + "% " + closedEnd + "%, #c5cfc8 " + closedEnd + "% 100%)";
-    pie.setAttribute("aria-label", formatCount(open) + " abiertas, " + formatCount(closed) + " cerradas, " + formatCount(undated) + " sin fechas");
+    pie.style.background = "conic-gradient(#d21f2c 0 " + openEnd + "%, #007A3D " + openEnd + "% 100%)";
+    pie.setAttribute("aria-label", formatCount(open) + " abiertas, " + formatCount(closed) + " cerradas");
   }
 
   function paintDashboard(stats) {
@@ -1500,7 +1517,7 @@
     const closed = stats.cerrada;
     $("dashOpen").textContent = formatCount(open);
     $("dashClosed").textContent = formatCount(closed);
-    paintPie(open, closed, stats.sinfecha);
+    paintPie(open, closed);
     $("dashFilters").textContent = filterCaption();
     const labels = { area: "Áreas", juego: "Juegos", bio: "Biosaludables" };
     $("dashKinds").innerHTML = stats.kinds.map(function (kind) {
@@ -1511,8 +1528,7 @@
     $("dashIncidents").textContent = formatCount(stats.incidenciaAbierta);
     $("dashAge").textContent = stats.ageCount ? formatCount(stats.ageAvg) + " días" : "—";
     $("dashOldest").textContent = stats.oldest == null ? "—" : formatCount(stats.oldest) + " días";
-    $("dashUndated").textContent = formatCount(stats.sinfecha);
-    $("dashTotal").textContent = formatCount(stats.total);
+    $("dashTotal").textContent = formatCount(open + closed);
     $("dashNote").textContent = stats.truncated
       ? "Hay más actuaciones de las que se han podido contar."
       : "";
@@ -1592,38 +1608,32 @@
     scheduleDashboard.timer = setTimeout(refreshDashboard, 350);
   }
 
-  async function searchActuaciones() {
-    refreshDashboard();
+  function resultsPanelVisible() {
+    const block = document.querySelector(".results-block");
+    return !!(block && !block.hidden);
+  }
+
+  async function queryFilteredActuaciones() {
     const text = $("fCodigo").value.trim();
     const parsed = parseActuacionId(text);
     const kinds = selectedKinds();
-    if (parsed && kinds.indexOf(parsed.kind) !== -1 && (!text || parsed.kind)) {
-      if (/^[AJB]-?\d+$/i.test(text)) {
-        const result = await tableLayers[parsed.kind].queryFeatures({
-          where: "OBJECTID = " + parsed.objectId,
-          outFields: ["*"],
-          returnGeometry: false,
-          num: 1
-        });
-        const feature = result.features[0];
-        if (!feature) {
-          currentRows = [];
-          setResultsVisible(true);
-          renderResults([]);
-          setStatus($("resultStatus"), "No existe la actuación " + text.toUpperCase() + ".", true);
-          return;
-        }
-        const code = feature.attributes[TARGETS[parsed.kind].relField];
-        const parent = await findParent(parsed.kind, code);
-        const row = { kind: parsed.kind, attributes: feature.attributes, parent: parent && parent.attributes };
-        currentRows = [row];
-        setStatus($("resultStatus"), "Actuación " + actuacionCode(parsed.kind, feature.attributes.OBJECTID) + ".", false);
-        $("btnPrintList").disabled = false;
-        if (parent) await openFeature(parsed.kind, parent.attributes, parent.geometry);
-        else setResultsVisible(false);
-        showActuacion(row);
-        return;
-      }
+    if (parsed && kinds.indexOf(parsed.kind) !== -1 && /^[AJB]-?\d+$/i.test(text)) {
+      const result = await tableLayers[parsed.kind].queryFeatures({
+        where: "OBJECTID = " + parsed.objectId,
+        outFields: ["*"],
+        returnGeometry: false,
+        num: 1
+      });
+      const feature = result.features[0];
+      if (!feature) return { mode: "empty", rows: [], message: "No existe la actuación " + text.toUpperCase() + ".", isError: true };
+      const code = feature.attributes[TARGETS[parsed.kind].relField];
+      const parent = await findParent(parsed.kind, code);
+      return {
+        mode: "single",
+        rows: [{ kind: parsed.kind, attributes: feature.attributes, parent: parent && parent.attributes }],
+        parent: parent,
+        message: "Actuación " + actuacionCode(parsed.kind, feature.attributes.OBJECTID) + "."
+      };
     }
 
     const rows = [];
@@ -1638,19 +1648,110 @@
     }
     rows.sort(compareActuaciones);
     await attachParents(rows);
-    currentRows = rows;
     if (!rows.length && text) {
       const features = await searchFeatures(text, kinds);
-      renderFeatureHits(features);
-      setStatus($("resultStatus"), features.length
-        ? "Sin actuaciones en el rango. Hay " + features.length + " elementos con ese código."
-        : "Sin resultados.", !features.length);
-      $("btnPrintList").disabled = true;
-      return;
+      return {
+        mode: "features",
+        rows: [],
+        features: features,
+        message: features.length
+          ? "Sin actuaciones en el rango. Hay " + features.length + " elementos con ese código."
+          : "Sin resultados.",
+        isError: !features.length
+      };
     }
-    renderResults(rows);
-    setStatus($("resultStatus"), rows.length + (rows.length === 1 ? " actuación." : " actuaciones."), false);
-    $("btnPrintList").disabled = !rows.length;
+    return {
+      mode: "list",
+      rows: rows,
+      message: rows.length + (rows.length === 1 ? " actuación." : " actuaciones.")
+    };
+  }
+
+  async function refreshResultsList(options) {
+    options = options || {};
+    const data = await queryFilteredActuaciones();
+    if (data.mode === "empty") {
+      currentRows = [];
+      if (!options.silent) setResultsVisible(true);
+      renderResults([]);
+      setStatus($("resultStatus"), data.message, true);
+      $("btnPrintList").disabled = true;
+      return data;
+    }
+    if (data.mode === "single") {
+      currentRows = data.rows;
+      setStatus($("resultStatus"), data.message, false);
+      $("btnPrintList").disabled = false;
+      if (options.openSingle) {
+        if (data.parent) await openFeature(data.rows[0].kind, data.parent.attributes, data.parent.geometry);
+        else setResultsVisible(false);
+        showActuacion(data.rows[0]);
+      } else if (!options.silent) {
+        renderResults(currentRows);
+      } else {
+        renderResults(currentRows);
+        if ($("ficha") && !$("ficha").hidden) setResultsVisible(false);
+      }
+      return data;
+    }
+    if (data.mode === "features") {
+      currentRows = [];
+      renderFeatureHits(data.features);
+      setStatus($("resultStatus"), data.message, !!data.isError);
+      $("btnPrintList").disabled = true;
+      return data;
+    }
+    currentRows = data.rows;
+    renderResults(data.rows);
+    setStatus($("resultStatus"), data.message, false);
+    $("btnPrintList").disabled = !data.rows.length;
+    return data;
+  }
+
+  async function searchActuaciones() {
+    refreshDashboard();
+    const text = $("fCodigo").value.trim();
+    const parsed = parseActuacionId(text);
+    const openSingle = !!(parsed && /^[AJB]-?\d+$/i.test(text));
+    await refreshResultsList({ openSingle: openSingle });
+  }
+
+  async function syncActuacionesViews(options) {
+    options = options || {};
+    if (syncBusy) return;
+    syncBusy = true;
+    try {
+      const tasks = [refreshDashboard()];
+      if (options.reloadHistory && selectedFeature) {
+        const code = featureCode(selectedFeature.kind, selectedFeature.attributes);
+        if (code) tasks.push(loadHistory(selectedFeature.kind, code));
+      }
+      if (options.reloadResults && resultsPanelVisible()) {
+        tasks.push(refreshResultsList({ silent: true }));
+      }
+      await Promise.all(tasks);
+    } finally {
+      syncBusy = false;
+    }
+  }
+
+  function startActuacionesPolling() {
+    stopActuacionesPolling();
+    pollTimer = setInterval(function () {
+      if (document.hidden || syncBusy || !tableLayers.area) return;
+      if ($("btnSave") && $("btnSave").disabled) return;
+      syncActuacionesViews({
+        reloadHistory: !!(selectedFeature && $("ficha") && !$("ficha").hidden),
+        reloadResults: resultsPanelVisible()
+      }).catch(function () {});
+    }, ACTUACIONES_POLL_MS);
+  }
+
+  function stopActuacionesPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
   }
 
   async function attachParents(rows) {
@@ -1970,6 +2071,12 @@
       setStatus($("formStatus"), "El elemento no tiene código.", true);
       return;
     }
+    const fechaIncidencia = $("actuacionForm").querySelector('[data-field="A_I_F_INCIDENCIA"]');
+    if (!fechaIncidencia || !fechaIncidencia.value) {
+      setStatus($("formStatus"), "La fecha de incidencia es obligatoria.", true);
+      if (fechaIncidencia) fechaIncidencia.focus();
+      return;
+    }
     const attrs = collectAttributes(kind);
     $("btnSave").disabled = true;
     try {
@@ -2013,7 +2120,10 @@
         $("btnDelete").disabled = false;
       }
       if (!$("fCodigo").value.trim()) $("fCodigo").value = code;
-      try { await searchActuaciones(); } catch (searchErr) { /* el parte ya está guardado */ }
+      try {
+        await syncActuacionesViews({ reloadResults: true });
+        if (resultsPanelVisible()) await refreshResultsList({ silent: true });
+      } catch (searchErr) { /* el parte ya está guardado */ }
       setResultsVisible(false);
     } catch (err) {
       setStatus($("formStatus"), err.message || "No se ha podido guardar.", true);
@@ -2042,16 +2152,21 @@
       const sameRow = function (row) {
         return row.kind === kind && String(row.attributes.OBJECTID) === String(removedId);
       };
-      const hadRow = currentRows.some(sameRow);
+      const keepResultsOpen = resultsPanelVisible();
       resetForm();
-      if (hadRow) {
-        currentRows = currentRows.filter(function (row) { return !sameRow(row); });
-        renderResults(currentRows);
+      currentRows = currentRows.filter(function (row) { return !sameRow(row); });
+      if (keepResultsOpen) {
+        try {
+          await refreshResultsList({ silent: false });
+        } catch (refreshErr) {
+          renderResults(currentRows);
+          $("btnPrintList").disabled = !currentRows.length;
+          setStatus($("resultStatus"), currentRows.length + (currentRows.length === 1 ? " actuación." : " actuaciones."), false);
+        }
         if (!$("ficha").hidden) setResultsVisible(false);
-        $("btnPrintList").disabled = !currentRows.length;
-        setStatus($("resultStatus"), currentRows.length + (currentRows.length === 1 ? " actuación." : " actuaciones."), false);
       }
       if (code) await loadHistory(kind, code);
+      await refreshDashboard();
       setStatus($("formStatus"), "Actuación " + label + " eliminada.", false);
     } catch (err) {
       setStatus($("formStatus"), err.message || "No se ha podido eliminar.", true);
@@ -2082,24 +2197,137 @@
     return String(value);
   }
 
-  function printDocument(title, bodyHtml) {
+  function waitForPrintImages(root) {
+    const images = Array.from(root.querySelectorAll("img"));
+    if (!images.length) return Promise.resolve();
+    return Promise.all(images.map(function (image) {
+      if (image.complete && image.naturalWidth) return Promise.resolve();
+      return new Promise(function (resolve) {
+        const done = function () { resolve(); };
+        image.addEventListener("load", done, { once: true });
+        image.addEventListener("error", done, { once: true });
+      });
+    }));
+  }
+
+  function printLogoUrl() {
+    return new URL("contenur.jpg", window.location.href).href;
+  }
+
+  function printStylesHtml() {
+    return [
+      "@page{size:A4;margin:10mm;}",
+      "html,body{margin:0;padding:0;background:#fff;color:#111;font:14px/1.4 Inter,Arial,sans-serif;}",
+      ".print-page{box-sizing:border-box;page-break-after:always;break-after:page;}",
+      ".print-page:last-child{page-break-after:auto;break-after:auto;}",
+      ".print-header{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:2px solid #007A3D;padding-bottom:6px;}",
+      ".print-header img{height:44px;width:auto;}",
+      ".print-header h1{margin:0;font-size:22px;font-family:Outfit,Inter,Arial,sans-serif;}",
+      ".print-header p{margin:2px 0 0;color:#333;font-size:13px;}",
+      ".print-meta{margin:8px 0 10px;font-size:13px;}",
+      "table{width:100%;border-collapse:collapse;font-size:13px;}",
+      "th,td{border:1px solid #cfd8d3;padding:6px 7px;vertical-align:top;text-align:left;}",
+      "th{background:#e7f3ec;}",
+      ".print-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin:6px 0 10px;}",
+      ".print-grid div{border-bottom:1px solid #e4ece7;padding:4px 0;font-size:13px;}",
+      ".print-checks{grid-template-columns:1fr 1fr 1fr;gap:3px 10px;}",
+      ".print-checks div{font-size:12.5px;padding:3px 0;}",
+      "h2.print-section{margin:10px 0 6px;font-size:15px;color:#005028;}",
+      ".print-page-photos .print-section{margin:6px 0;}",
+      ".print-wide{display:grid;grid-template-columns:1fr;gap:6px;margin:4px 0 0;}",
+      ".print-block{border:1px solid #cfd8d3;border-radius:2px;padding:7px 9px;box-sizing:border-box;background:#fbfcfb;}",
+      ".print-block strong{display:block;margin:0 0 5px;font-size:13px;color:#005028;}",
+      ".print-block p{margin:0;font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word;}",
+      ".print-block.is-short{min-height:20mm;}",
+      ".print-block.is-tall{min-height:36mm;}",
+      ".print-empty{margin:0 0 10px;font-size:13px;color:#444;}",
+      ".print-photos{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(4,50mm);gap:3mm;margin:0;width:100%;}",
+      ".print-photo{margin:0;border:1px solid #cfd8d3;padding:2mm;height:50mm;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;page-break-inside:avoid;break-inside:avoid;}",
+      ".print-photo img{display:block;width:100%;height:40mm;object-fit:contain;}",
+      ".print-photo figcaption{margin-top:1mm;font-size:10px;color:#333;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}"
+    ].join("");
+  }
+
+  function printHeaderHtml(title) {
     const from = $("fDesde").value ? toInputDate($("fDesde").value).split("-").reverse().join("/") : "—";
     const to = $("fHasta").value ? toInputDate($("fHasta").value).split("-").reverse().join("/") : "—";
-    $("printSheet").innerHTML =
-      '<header class="print-header"><div><h1>' + esc(title) + '</h1>' +
+    return '<header class="print-header"><div><h1>' + esc(title) + '</h1>' +
       '<p>Ayuntamiento de Rivas Vaciamadrid · Mantenimiento de áreas de juego</p></div>' +
-      '<img src="contenur.jpg" alt="Contenur"></header>' +
+      '<img src="' + esc(printLogoUrl()) + '" alt="Contenur"></header>' +
       '<p class="print-meta">Rango: ' + esc(from) + ' – ' + esc(to) +
       ' · Emitido: ' + esc(new Date().toLocaleString("es-ES")) +
-      ' · ' + esc(session.userId) + '</p>' + bodyHtml;
-    const image = $("printSheet").querySelector("img");
-    const go = function () { window.print(); };
-    if (image && !image.complete) image.addEventListener("load", go, { once: true });
-    else go();
+      ' · ' + esc(session.userId) + '</p>';
+  }
+
+  async function printDocument(title, bodyHtml, extraPagesHtml) {
+    const pagesHtml =
+      '<div class="print-page">' + printHeaderHtml(title) + bodyHtml + "</div>" +
+      (extraPagesHtml || "");
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;";
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument || frame.contentWindow.document;
+    doc.open();
+    doc.write(
+      "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\">" +
+      "<title>" + esc(title) + "</title><style>" + printStylesHtml() + "</style></head><body>" +
+      pagesHtml + "</body></html>"
+    );
+    doc.close();
+    try {
+      await waitForPrintImages(doc);
+      const win = frame.contentWindow;
+      win.focus();
+      await new Promise(function (resolve) {
+        const cleanup = function () {
+          window.removeEventListener("focus", cleanup);
+          setTimeout(function () {
+            if (frame.parentNode) frame.parentNode.removeChild(frame);
+            resolve();
+          }, 300);
+        };
+        window.addEventListener("focus", cleanup);
+        win.print();
+      });
+    } catch (err) {
+      if (frame.parentNode) frame.parentNode.removeChild(frame);
+      throw err;
+    }
+  }
+
+  async function fetchActuacionAttachments(kind, objectId) {
+    if (!tableLayers[kind] || objectId == null) return [];
+    const result = await tableLayers[kind].queryAttachments({ objectIds: [objectId] });
+    return (result && (result[objectId] || result[String(objectId)])) || [];
+  }
+
+  function printPhotosPagesHtml(infos, reportTitle) {
+    const images = (infos || []).filter(function (info) {
+      return info && info.url && isImageAttachment(info);
+    });
+    if (!images.length) return "";
+    const perPage = 8;
+    const pages = [];
+    for (let i = 0; i < images.length; i += perPage) pages.push(images.slice(i, i + perPage));
+    return pages.map(function (pageImages, pageIndex) {
+      const figures = pageImages.map(function (info) {
+        const url = attachmentUrl(info.url);
+        const caption = esc(info.name || "Fotografía");
+        return '<figure class="print-photo"><img src="' + esc(url) + '" alt="' + caption + '"><figcaption>' + caption + "</figcaption></figure>";
+      }).join("");
+      const title = pages.length > 1
+        ? "Fotografías (" + (pageIndex + 1) + "/" + pages.length + ")"
+        : "Fotografías";
+      return '<div class="print-page print-page-photos">' +
+        printHeaderHtml(reportTitle) +
+        '<h2 class="print-section">' + title + "</h2>" +
+        '<div class="print-photos">' + figures + "</div></div>";
+    }).join("");
   }
 
   function printList() {
-    if (!currentRows.length) return;
+    if (!currentRows.length) return Promise.resolve();
     const rows = currentRows.map(function (row) {
       const attrs = row.attributes;
       return "<tr><td>" + esc(actuacionCode(row.kind, attrs.OBJECTID)) + "</td><td>" +
@@ -2109,31 +2337,54 @@
         esc(attrs.A_I_INCIDENCIA || "NO") + "</td><td>" +
         esc(attrs.M_F_OBSERVACIONES || attrs.A_I_DESCRIPCION || "") + "</td></tr>";
     }).join("");
-    printDocument("Informe de actuaciones",
+    return printDocument("Informe de actuaciones",
       "<table><thead><tr><th>Actuación</th><th>Ámbito</th><th>Código</th><th>Elemento</th><th>Fecha</th><th>Usuario</th><th>Incidencia</th><th>Observaciones</th></tr></thead><tbody>" +
       rows + "</tbody></table>");
   }
 
-  function printOne() {
+  async function printOne() {
     const row = activeActuacion;
     if (!row) return;
     const attrs = row.attributes;
     const parent = row.parent || (selectedFeature && selectedFeature.attributes);
-    const fields = CHECK_FIELDS.map(function (field) { return field[0]; }).concat([
-      "A_I_INCIDENCIA", "A_I_F_INCIDENCIA", "A_I_F_RESOLUCION",
-      "A_I_MAT_NECESARIO", "A_I_DESCRIPCION", "M_F_OBSERVACIONES"
+    const checkNames = CHECK_FIELDS.map(function (field) { return field[0]; }).concat([
+      "A_I_INCIDENCIA", "A_I_F_INCIDENCIA", "A_I_F_RESOLUCION"
     ]);
-    const grid = fields.map(function (name) {
+    const checks = checkNames.map(function (name) {
       return "<div><strong>" + esc(checkLabel(name)) + ":</strong> " + esc(displayValue(name, attrs[name])) + "</div>";
     }).join("");
-    printDocument("Actuación " + actuacionCode(row.kind, attrs.OBJECTID),
+    const wideFields = [
+      ["A_I_MAT_NECESARIO", "is-short"],
+      ["A_I_DESCRIPCION", "is-tall"],
+      ["M_F_OBSERVACIONES", "is-tall"]
+    ];
+    const wide = wideFields.map(function (item) {
+      const name = item[0];
+      const sizeClass = item[1];
+      return '<div class="print-block ' + sizeClass + '"><strong>' + esc(checkLabel(name)) + "</strong>" +
+        "<p>" + esc(displayValue(name, attrs[name])) + "</p></div>";
+    }).join("");
+    const reportTitle = "Actuación " + actuacionCode(row.kind, attrs.OBJECTID);
+    let photosPages = "";
+    let photosNote = "";
+    try {
+      const infos = await fetchActuacionAttachments(row.kind, attrs.OBJECTID);
+      photosPages = printPhotosPagesHtml(infos, reportTitle);
+      if (!photosPages) photosNote = '<h2 class="print-section">Fotografías</h2><p class="print-empty">Esta actuación no tiene fotografías.</p>';
+    } catch (err) {
+      photosNote = '<h2 class="print-section">Fotografías</h2><p class="print-empty">No se han podido cargar las fotografías.</p>';
+    }
+    await printDocument(reportTitle,
       '<div class="print-grid"><div><strong>Ámbito:</strong> ' + esc(TARGETS[row.kind].label) + "</div>" +
       "<div><strong>Código:</strong> " + esc(attrs[TARGETS[row.kind].relField] || "") + "</div>" +
       "<div><strong>Elemento:</strong> " + esc(parentName(row.kind, parent)) + "</div>" +
       "<div><strong>Tipo:</strong> " + esc((parent && parent.TIPO) || "") + "</div>" +
       "<div><strong>Registrada:</strong> " + esc(formatDateTime(attrs.CREATED_DATE)) + "</div>" +
       "<div><strong>Usuario:</strong> " + esc(attrs.CREATED_USER || "") + "</div></div>" +
-      '<h2 class="print-section">Parte de trabajo</h2><div class="print-grid">' + grid + "</div>");
+      '<h2 class="print-section">Parte de trabajo</h2><div class="print-grid print-checks">' + checks + "</div>" +
+      '<h2 class="print-section">Detalle</h2><div class="print-wide">' + wide + "</div>" +
+      photosNote,
+      photosPages);
   }
 
   $("togglePass").addEventListener("click", function () {
@@ -2163,8 +2414,17 @@
   });
 
   $("btnLogout").addEventListener("click", function () {
+    stopActuacionesPolling();
     clearSession();
     location.reload();
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden || !tableLayers.area) return;
+    syncActuacionesViews({
+      reloadHistory: !!(selectedFeature && $("ficha") && !$("ficha").hidden),
+      reloadResults: resultsPanelVisible()
+    }).catch(function () {});
   });
 
   $("btnBuscar").addEventListener("click", function () {
@@ -2267,8 +2527,16 @@
     });
   });
   $("actuacionForm").addEventListener("submit", saveActuacion);
-  $("btnPrintList").addEventListener("click", printList);
-  $("btnPrintOne").addEventListener("click", printOne);
+  $("btnPrintList").addEventListener("click", function () {
+    printList().catch(function (err) {
+      setStatus($("formStatus"), err.message || "No se ha podido imprimir.", true);
+    });
+  });
+  $("btnPrintOne").addEventListener("click", function () {
+    printOne().catch(function (err) {
+      setStatus($("formStatus"), err.message || "No se ha podido imprimir la actuación.", true);
+    });
+  });
 
   buildForm();
   setDefaultDates();
