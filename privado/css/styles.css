@@ -623,11 +623,27 @@ button, input, select, textarea { font: inherit; }
 
 .form-section { margin-top: 8px; }
 .form-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 12px 0 8px;
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0;
 }
 .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
 .check-field select { height: 34px; }

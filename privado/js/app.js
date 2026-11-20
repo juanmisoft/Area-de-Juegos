@@ -572,16 +572,16 @@
   }
 
   function buildForm() {
-    const html = CHECKS.map(function (group) {
+    const html = CHECKS.map(function (group, index) {
       const fields = group[1].map(function (field) {
         return '<label class="check-field">' + esc(field[1]) +
           '<select data-field="' + field[0] + '" data-kind="check">' +
           '<option value="NO">NO</option><option value="SI">SI</option></select></label>';
       }).join("");
-      return '<div class="form-section"><h4>' + esc(group[0]) + '</h4><div class="check-grid">' + fields + '</div></div>';
+      return '<div class="form-section"><h4><span class="section-num">' + (index + 1) + "</span>" + esc(group[0]) + '</h4><div class="check-grid">' + fields + '</div></div>';
     }).join("");
     $("formFields").innerHTML = html +
-      '<div class="form-section"><h4>Incidencia</h4>' +
+      '<div class="form-section"><h4><span class="section-num">4</span>Incidencia</h4>' +
       '<label class="check-field">Hay incidencia<select data-field="A_I_INCIDENCIA" data-kind="check"><option value="NO">NO</option><option value="SI">SI</option></select></label>' +
       '<div class="row2"><label>Fecha de incidencia<input data-field="A_I_F_INCIDENCIA" data-kind="date" type="date" required></label>' +
       '<label>Fecha de resolución<input data-field="A_I_F_RESOLUCION" data-kind="date" type="date"></label></div>' +
@@ -2217,30 +2217,50 @@
   function printStylesHtml() {
     return [
       "@page{size:A4;margin:10mm;}",
-      "html,body{margin:0;padding:0;background:#fff;color:#111;font:14px/1.4 Inter,Arial,sans-serif;}",
+      "html,body{margin:0;padding:0;background:#fff;color:#111;font:13px/1.35 Inter,Arial,sans-serif;}",
       ".print-page{box-sizing:border-box;page-break-after:always;break-after:page;}",
       ".print-page:last-child{page-break-after:auto;break-after:auto;}",
-      ".print-header{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:2px solid #007A3D;padding-bottom:6px;}",
-      ".print-header img{height:44px;width:auto;}",
-      ".print-header h1{margin:0;font-size:22px;font-family:Outfit,Inter,Arial,sans-serif;}",
-      ".print-header p{margin:2px 0 0;color:#333;font-size:13px;}",
-      ".print-meta{margin:8px 0 10px;font-size:13px;}",
+      ".print-report{height:270mm;max-height:270mm;overflow:hidden;display:flex;flex-direction:column;}",
+      ".print-header{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:2px solid #007A3D;padding-bottom:4px;flex:0 0 auto;}",
+      ".print-header img{height:40px;width:auto;}",
+      ".print-header h1{margin:0;font-size:20px;font-family:Outfit,Inter,Arial,sans-serif;}",
+      ".print-header p{margin:2px 0 0;color:#333;font-size:12px;}",
+      ".print-meta{margin:6px 0 6px;font-size:12px;flex:0 0 auto;}",
       "table{width:100%;border-collapse:collapse;font-size:13px;}",
       "th,td{border:1px solid #cfd8d3;padding:6px 7px;vertical-align:top;text-align:left;}",
       "th{background:#e7f3ec;}",
-      ".print-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin:6px 0 10px;}",
-      ".print-grid div{border-bottom:1px solid #e4ece7;padding:4px 0;font-size:13px;}",
-      ".print-checks{grid-template-columns:1fr 1fr 1fr;gap:3px 10px;}",
-      ".print-checks div{font-size:12.5px;padding:3px 0;}",
-      "h2.print-section{margin:10px 0 6px;font-size:15px;color:#005028;}",
-      ".print-page-photos .print-section{margin:6px 0;}",
-      ".print-wide{display:grid;grid-template-columns:1fr;gap:6px;margin:4px 0 0;}",
-      ".print-block{border:1px solid #cfd8d3;border-radius:2px;padding:7px 9px;box-sizing:border-box;background:#fbfcfb;}",
-      ".print-block strong{display:block;margin:0 0 5px;font-size:13px;color:#005028;}",
-      ".print-block p{margin:0;font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word;}",
-      ".print-block.is-short{min-height:20mm;}",
-      ".print-block.is-tall{min-height:36mm;}",
-      ".print-empty{margin:0 0 10px;font-size:13px;color:#444;}",
+      ".print-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px 14px;margin:0 0 3mm;flex:0 0 auto;}",
+      ".print-grid div{border-bottom:1px solid #e4ece7;padding:1px 0;font-size:12px;}",
+      ".print-apartados{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:2.5mm;}",
+      ".print-apartado{flex:0 0 auto;border:1.5px solid #007A3D;border-radius:2px;overflow:hidden;display:flex;flex-direction:column;min-height:0;break-inside:avoid;page-break-inside:avoid;}",
+      ".print-apartado h2{display:flex;align-items:center;gap:2.5mm;margin:0;padding:1.6mm 3mm;font-size:13px;letter-spacing:0.02em;text-transform:uppercase;}",
+      ".print-num{display:inline-flex;align-items:center;justify-content:center;width:5.5mm;height:5.5mm;border-radius:50%;background:#007A3D;color:#fff;font-size:11px;font-weight:700;flex:0 0 auto;}",
+      ".tone-limpieza{border-color:#007A3D;}",
+      ".tone-limpieza h2{background:#e7f3ec;color:#005028;}",
+      ".tone-mantenimiento{border-color:#0e6b8a;}",
+      ".tone-mantenimiento h2{background:#e7f3f7;color:#0e4f66;}",
+      ".tone-mantenimiento .print-num{background:#0e6b8a;}",
+      ".tone-funcionamiento{border-color:#8a5a00;}",
+      ".tone-funcionamiento h2{background:#fbf3e4;color:#6d4600;}",
+      ".tone-funcionamiento .print-num{background:#8a5a00;}",
+      ".tone-incidencia{border-color:#9d1c2b;}",
+      ".tone-incidencia h2{background:#fde8ea;color:#9d1c2b;}",
+      ".tone-incidencia .print-num{background:#9d1c2b;}",
+      ".print-checks{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 4mm;margin:0;padding:1.5mm 3mm 2mm;}",
+      ".print-dates{display:grid;grid-template-columns:1fr 1fr;gap:0 4mm;margin:0;padding:0 3mm 2mm;}",
+      ".print-checks div,.print-dates div{display:flex;justify-content:space-between;gap:2mm;border-bottom:1px solid #e4ece7;padding:0.7mm 0;font-size:11px;}",
+      ".print-dates div{justify-content:flex-start;gap:3mm;border-bottom:0;}",
+      ".print-checks strong,.print-dates strong{font-size:11px;}",
+      ".print-checks .is-si strong{color:#005028;}",
+      ".print-checks .is-no strong{color:#6b7280;font-weight:600;}",
+      ".print-texts{display:flex;flex-direction:column;gap:1.5mm;padding:0 3mm 2.5mm;}",
+      ".print-block{overflow:hidden;border:1px solid #e4ece7;padding:1.5mm 2mm;background:#fff;}",
+      ".print-block strong{display:block;margin:0 0 1mm;font-size:11px;color:#333;}",
+      ".print-block p{margin:0;max-height:28mm;font-size:12px;line-height:1.35;white-space:pre-wrap;word-break:break-word;overflow:hidden;}",
+      "h2.print-section{margin:6px 0;font-size:15px;color:#005028;}",
+      ".print-page-photos{page-break-before:auto;break-before:auto;}",
+      ".print-page-photos .print-section{margin:4px 0 6px;}",
+      ".print-empty{margin:4mm 0 0;font-size:13px;color:#444;}",
       ".print-photos{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(4,50mm);gap:3mm;margin:0;width:100%;}",
       ".print-photo{margin:0;border:1px solid #cfd8d3;padding:2mm;height:50mm;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;page-break-inside:avoid;break-inside:avoid;}",
       ".print-photo img{display:block;width:100%;height:40mm;object-fit:contain;}",
@@ -2259,9 +2279,9 @@
       ' · ' + esc(session.userId) + '</p>';
   }
 
-  async function printDocument(title, bodyHtml, extraPagesHtml) {
+  async function printDocument(title, bodyHtml, extraPagesHtml, pageClass) {
     const pagesHtml =
-      '<div class="print-page">' + printHeaderHtml(title) + bodyHtml + "</div>" +
+      '<div class="print-page' + (pageClass ? " " + pageClass : "") + '">' + printHeaderHtml(title) + bodyHtml + "</div>" +
       (extraPagesHtml || "");
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
@@ -2342,49 +2362,86 @@
       rows + "</tbody></table>");
   }
 
+  function reportValueFilled(name, value) {
+    if (name === "A_I_F_INCIDENCIA") return false;
+    if (value == null) return false;
+    const text = String(value).trim();
+    return text !== "" && text.toUpperCase() !== "NO";
+  }
+
+  function printChecksHtml(fields, attrs) {
+    return '<div class="print-checks">' + fields.map(function (field) {
+      const on = String(attrs[field[0]] == null ? "" : attrs[field[0]]).trim().toUpperCase() === "SI";
+      return '<div class="' + (on ? "is-si" : "is-no") + '"><span>' + esc(field[1]) + "</span><strong>" + (on ? "SI" : "NO") + "</strong></div>";
+    }).join("") + "</div>";
+  }
+
+  function printApartadoHtml(apartado, attrs) {
+    const names = (apartado.checks || []).concat(apartado.dates || []).concat(apartado.texts || []);
+    const touched = names.some(function (field) { return reportValueFilled(field[0], attrs[field[0]]); });
+    if (!touched) return "";
+    let body = apartado.checks ? printChecksHtml(apartado.checks, attrs) : "";
+    if (apartado.dates) {
+      body += '<div class="print-dates">' + apartado.dates.map(function (field) {
+        return "<div><span>" + esc(field[1]) + "</span><strong>" + esc(displayValue(field[0], attrs[field[0]])) + "</strong></div>";
+      }).join("") + "</div>";
+    }
+    const texts = (apartado.texts || []).filter(function (field) {
+      return reportValueFilled(field[0], attrs[field[0]]);
+    });
+    if (texts.length) {
+      body += '<div class="print-texts">' + texts.map(function (field) {
+        return '<div class="print-block"><strong>' + esc(field[1]) + "</strong><p>" + esc(displayValue(field[0], attrs[field[0]])) + "</p></div>";
+      }).join("") + "</div>";
+    }
+    return '<section class="print-apartado tone-' + apartado.tone + '">' +
+      '<h2><span class="print-num">' + apartado.number + "</span>" + esc(apartado.title) + "</h2>" +
+      body + "</section>";
+  }
+
+  function printApartadosHtml(attrs) {
+    const apartados = [
+      { number: "1", title: "Limpieza y revisión", tone: "limpieza", checks: CHECKS[0][1] },
+      { number: "2", title: "Mantenimiento", tone: "mantenimiento", checks: CHECKS[1][1] },
+      { number: "3", title: "Funcionamiento", tone: "funcionamiento", checks: CHECKS[2][1] },
+      {
+        number: "4",
+        title: "Incidencia",
+        tone: "incidencia",
+        checks: [["A_I_INCIDENCIA", "Hay incidencia"]],
+        dates: [["A_I_F_INCIDENCIA", "Fecha de incidencia"], ["A_I_F_RESOLUCION", "Fecha de resolución"]],
+        texts: [["A_I_MAT_NECESARIO", "Material necesario"], ["A_I_DESCRIPCION", "Descripción"], ["M_F_OBSERVACIONES", "Observaciones"]]
+      }
+    ];
+    const html = apartados.map(function (apartado) { return printApartadoHtml(apartado, attrs); }).join("");
+    return '<div class="print-apartados">' + (html || '<p class="print-empty">Esta actuación no tiene apartados con datos.</p>') + "</div>";
+  }
+
   async function printOne() {
     const row = activeActuacion;
     if (!row) return;
     const attrs = row.attributes;
     const parent = row.parent || (selectedFeature && selectedFeature.attributes);
-    const checkNames = CHECK_FIELDS.map(function (field) { return field[0]; }).concat([
-      "A_I_INCIDENCIA", "A_I_F_INCIDENCIA", "A_I_F_RESOLUCION"
-    ]);
-    const checks = checkNames.map(function (name) {
-      return "<div><strong>" + esc(checkLabel(name)) + ":</strong> " + esc(displayValue(name, attrs[name])) + "</div>";
-    }).join("");
-    const wideFields = [
-      ["A_I_MAT_NECESARIO", "is-short"],
-      ["A_I_DESCRIPCION", "is-tall"],
-      ["M_F_OBSERVACIONES", "is-tall"]
-    ];
-    const wide = wideFields.map(function (item) {
-      const name = item[0];
-      const sizeClass = item[1];
-      return '<div class="print-block ' + sizeClass + '"><strong>' + esc(checkLabel(name)) + "</strong>" +
-        "<p>" + esc(displayValue(name, attrs[name])) + "</p></div>";
-    }).join("");
     const reportTitle = "Actuación " + actuacionCode(row.kind, attrs.OBJECTID);
     let photosPages = "";
-    let photosNote = "";
     try {
       const infos = await fetchActuacionAttachments(row.kind, attrs.OBJECTID);
       photosPages = printPhotosPagesHtml(infos, reportTitle);
-      if (!photosPages) photosNote = '<h2 class="print-section">Fotografías</h2><p class="print-empty">Esta actuación no tiene fotografías.</p>';
     } catch (err) {
-      photosNote = '<h2 class="print-section">Fotografías</h2><p class="print-empty">No se han podido cargar las fotografías.</p>';
+      photosPages = '<div class="print-page print-page-photos">' + printHeaderHtml(reportTitle) +
+        '<h2 class="print-section">Fotografías</h2><p class="print-empty">No se han podido cargar las fotografías.</p></div>';
     }
     await printDocument(reportTitle,
       '<div class="print-grid"><div><strong>Ámbito:</strong> ' + esc(TARGETS[row.kind].label) + "</div>" +
       "<div><strong>Código:</strong> " + esc(attrs[TARGETS[row.kind].relField] || "") + "</div>" +
       "<div><strong>Elemento:</strong> " + esc(parentName(row.kind, parent)) + "</div>" +
       "<div><strong>Tipo:</strong> " + esc((parent && parent.TIPO) || "") + "</div>" +
+      "<div><strong>Fecha de incidencia:</strong> " + esc(displayValue("A_I_F_INCIDENCIA", attrs.A_I_F_INCIDENCIA)) + "</div>" +
       "<div><strong>Registrada:</strong> " + esc(formatDateTime(attrs.CREATED_DATE)) + "</div>" +
       "<div><strong>Usuario:</strong> " + esc(attrs.CREATED_USER || "") + "</div></div>" +
-      '<h2 class="print-section">Parte de trabajo</h2><div class="print-grid print-checks">' + checks + "</div>" +
-      '<h2 class="print-section">Detalle</h2><div class="print-wide">' + wide + "</div>" +
-      photosNote,
-      photosPages);
+      printApartadosHtml(attrs),
+      photosPages,
+      "print-report");
   }
 
   $("togglePass").addEventListener("click", function () {
